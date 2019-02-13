@@ -62,7 +62,36 @@ class ObservationDecoder(to.nn.Module):
 
 ### q(c | D) parameterised by phi
 class StatisticNetwork(to.nn.Module):
-    pass
+    def __init__(self):
+        super().__init__()
+
+        # Input is whole dataset; a batch of dim(x)
+        self.embed_dense1 = to.nn.Linear(1, 128)
+        self.embed_dense2 = to.nn.Linear(128, 128)
+        self.embed_dense3 = to.nn.Linear(128, 128)
+
+        self.post_pool_dense1 = to.nn.Linear(128, 128)
+        self.post_pool_dense2 = to.nn.Linear(128, 128)
+        # Output is Gaussian parameters for c
+        self.post_pool_dense3 = to.nn.Linear(128, 2 * 3)
+
+    def forward(self, data):
+        data = self.embed_dense1(data)
+        data = F.relu(data)
+        data = self.embed_dense2(data)
+        data = F.relu(data)
+        data = self.embed_dense3(data)
+        data = F.relu(data)
+
+        data = data.mean(dim=0)
+
+        data = self.post_pool_dense1(data)
+        data = F.relu(data)
+        data = self.post_pool_dense2(data)
+        data = F.relu(data)
+        data = self.post_pool_dense3(data)
+
+        return data
 
 
 ### q(z_i | z_(i+1), c, x) parameterised by phi
