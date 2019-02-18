@@ -10,22 +10,48 @@ class NeuralStatistician(object):
     def __init__(self, num_stochastic_layers):
         super().__init__()
 
-        self.latent_decoders = [ex.LatentDecoder() for _ in num_stochastic_layers]
+        self.latent_decoders = [ex.LatentDecoder() for _ in range(num_stochastic_layers)]
         self.observation_decoder = ex.ObservationDecoder()
         self.statistic_network = ex.StatisticNetwork()
-        self.inference_networks = [ex.InferenceNetwork() for _ in num_stochastic_layers]
+        self.inference_networks = [ex.InferenceNetwork() for _ in range(num_stochastic_layers)]
 
+        self.context_prior_mean = to.zeros(ex.context_dimension)
+        self.context_prior_cov = to.eye(ex.context_dimension)
         self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
-            loc=to.zeros(ex.context_dimension), covariance_matrix=to.eye(ex.context_dimension))
+            loc=self.context_prior_mean, covariance_matrix=cself.context_prior_cov)
 
-    def compute_context_divergence(self, num_iterations=100):
-        pass
+    def normal_kl_divergence(self, mean_0, diag_cov_0, mean_1, diag_cov_1):
+        """Compute the KL divergence between two diagonal Gaussians, where
+        diag_cov_x is a 1D vector containing the diagonal elements of the
+        xth covariance matrix."""
+        return 0.5 * (
+            to.dot(1 / diag_cov_1, diag_cov_0) +
+            to.dot((mean_1 - mean_0) ** 2, 1 / diag_cov_1) - mean_0.size()[0] +
+            to.sum(to.log(mean_1)) - to.sum(to.log(mean_0))
+        )
 
-    def compute_loss(self, distribution_parameters):
+    def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data):
         """Compute the full model loss function"""
         # Context divergence
-        # Expectation, under q(c | D; phi), of log (q(c|D;phi) / p(c))
-        
+        context_mean, context_log_cov = context_output
+        context_divergence = self.normal_kl_divergence(context_mean, to.exp(context_log_cov),
+                                                       self.context_prior_mean, self.context_prior_cov)
+
+        # Latent divergence
+        # For computational efficiency, draw a single sample context from q(c, z | D, phi)
+        # rather than computing the expectation properly.
+        latent_divergence = to.tensor(0.0)
+        for ((inference_mu, inference_log_cov), (decoder_mu, decoder_log_cov)) in zip(inference_outputs, decoder_outputs):
+            latent_divergence += self.normal_kl_divergence(inference_mu, to.exp(inference_log_cov),
+                                                           decoder_mu, to.exp(decoder_log_cov))
+
+        # Reconstruction loss
+        observation_decoder_mean, observation_decoder_log_cov = observation_decoder_outputs
+        reconstruction_loss = to.distributions.normal.Normal(
+            loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data)
+
+        return context_divergence + latent_divergence + reconstruction_loss
+
 
     def predict(self):
         pass
@@ -39,7 +65,7 @@ class NeuralStatistician(object):
 
         for iteration in num_iterations:
             distribution_parameters = self.predict(data)
-            loss = self.compute_loss(distribution_parameters)
+            loss = self.compute_loss(*distribution_parameters)
 
             optimiser.zero_grad()
             loss.backward()
