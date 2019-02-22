@@ -1,5 +1,6 @@
 import torch as to
 import torch.nn.functional as F
+import numpy as np
 
 import one_dimensional_test as ex
 
@@ -53,8 +54,22 @@ class NeuralStatistician(object):
         return context_divergence + latent_divergence + reconstruction_loss
 
 
-    def predict(self):
-        pass
+    def predict(self, data):
+        statistic_net_outputs = self.statistic_network(data)
+        contexts = self.reparameterise_normal(context_means, context_log_vars)
+
+        inference_net_outputs = [self.inference_networks[0](data, contexts)]
+        latent_z = [self.reparameterise_normal(*inference_net_outputs)]
+        for inference_network in self.inference_networks[1:]:
+            inference_net_outputs.append(inference_network(data, contexts, inference_net_outputs[-1]))
+
+
+    def reparameterise_normal(self, mean, log_var):
+        """Draw samples from the given normal distribution via the
+        reparameterisation trick"""
+        std_errors = np.random.normal(np.zeros(len(mean)), np.ones(len(mean)))
+        return mean + np.exp(0.5 * log_var) * std_errors
+        
 
     def train(self, data, num_iterations):
         """Train the Neural Statistician"""
