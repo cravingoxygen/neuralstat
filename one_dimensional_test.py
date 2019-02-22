@@ -3,6 +3,8 @@ import torch.utils.data
 import torch.nn.functional as F
 import numpy as np
 
+import neural_statistician as ns
+
 context_dimension = 3
 
 ### p(z_i | z_(i+1), c) parameterised by theta
@@ -148,7 +150,14 @@ class OneDimensionalDataset(to.utils.data.TensorDataset):
 
 
 def main():
-    pass
+    optimiser_func = lambda parameters: to.optim.Adam(parameters,
+                                                      lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0)
+    dataset = OneDimensionalDataset()
+    dataloader = to.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
+
+    network = ns.NeuralStatistician(1, 3,
+                                    LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork)
+    network.train(dataloader, 100, optimiser_func)
 
 
 if __name__ == '__main__':
