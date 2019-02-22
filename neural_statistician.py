@@ -1,6 +1,7 @@
 import torch as to
 import torch.nn.functional as F
 import numpy as np
+from torch.autograd import Variable
 
 
 class NeuralStatistician(object):
@@ -54,6 +55,8 @@ class NeuralStatistician(object):
 
 
     def predict(self, data):
+        #Here, we're recieving a tuple with one tensor in it. The tensor is what we need to 
+        # split out to get to the mean and log_var
         statistic_net_outputs = self.statistic_network(data)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
 
@@ -73,8 +76,8 @@ class NeuralStatistician(object):
     def reparameterise_normal(self, mean, log_var):
         """Draw samples from the given normal distribution via the
         reparameterisation trick"""
-        std_errors = np.random.normal(np.zeros(len(mean)), np.ones(len(mean)))
-        return mean + np.exp(0.5 * log_var) * std_errors
+        std_errors = Variable(to.randn(log_var.size())) #Create a new variable so that we can track the gradients
+        return mean + to.exp(0.5 * log_var) * std_errors
         
 
     def train(self, dataloader, num_iterations, optimiser_func):
