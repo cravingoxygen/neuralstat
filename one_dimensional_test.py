@@ -1,5 +1,7 @@
 import torch as to
+import torch.utils.data
 import torch.nn.functional as F
+import numpy as np
 
 context_dimension = 3
 
@@ -126,3 +128,19 @@ class InferenceNetwork(to.nn.Module):
         w = self.final(w)
         # We've now computed mu_x and log sigma_x
         return w
+
+
+class OneDimensionalDataset(to.utils.data.TensorDataset):
+    def __init__(self):
+        data = np.zeros((10000, 200))
+        means = np.random.uniform(-1, 1, 10000)
+        variances = np.random.uniform(0.5, 2, 10000)
+
+        data[0:2500] = np.random.exponential(np.sqrt(variances[0:2500]), (200, 2500)).T
+        data[2500:5000] = np.random.normal(means[2500:5000], variances[2500:5000], (200, 2500)).T
+        data[5000:7500] = np.random.uniform(means[5000:7500] - np.sqrt(3*variances[5000:7500]),
+                                            means[5000:7500] + np.sqrt(3*variances[5000:7500]), (200, 2500)).T
+        data[7500:10000] = np.random.laplace(means[7500:10000], np.sqrt(variances[7500:10000]/2), (200, 2500)).T
+
+        data = to.tensor(data.reshape((10000, 200, 1)))
+        super().__init__(data)
