@@ -77,18 +77,25 @@ class NeuralStatistician(object):
         return mean + np.exp(0.5 * log_var) * std_errors
         
 
-    def train(self, data, num_iterations):
+    def train(self, dataloader, num_iterations, optimiser_func):
         """Train the Neural Statistician"""
 
-        network_parameters = None
-        optimiser = to.optim.Adam(network_parameters,
-                                  lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0)
+        network_parameters = []
+        for decoder in self.latent_decoders:
+            network_parameters.extend(decoder.parameters())
+        network_parameters.extend(self.observation_decoder.parameters())
+        network_parameters.extend(self.statistic_network.parameters())
+        for network in self.inference_networks:
+            network_parameters.extend(network.parameters())
+
+        optimiser = optimiser_func(network_parameters)
 
         for iteration in num_iterations:
-            distribution_parameters = self.predict(data)
-            loss = self.compute_loss(*distribution_parameters, data=data)
+            for data_batch in dataloader:
+                distribution_parameters = self.predict(data_batch)
+                loss = self.compute_loss(*distribution_parameters, data=data_batch)
 
-            optimiser.zero_grad()
-            loss.backward()
-            optimiser.step()
+                optimiser.zero_grad()
+                loss.backward()
+                optimiser.step()
 
