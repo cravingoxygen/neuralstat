@@ -18,7 +18,7 @@ class NeuralStatistician(object):
         self.context_prior_mean = to.zeros(context_dimension)
         self.context_prior_cov = to.eye(context_dimension)
         self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
-            loc=self.context_prior_mean, covariance_matrix=cself.context_prior_cov)
+            loc=self.context_prior_mean, covariance_matrix=self.context_prior_cov)
 
     def normal_kl_divergence(self, mean_0, diag_cov_0, mean_1, diag_cov_1):
         """Compute the KL divergence between two diagonal Gaussians, where
@@ -90,7 +90,7 @@ class NeuralStatistician(object):
 
         optimiser = optimiser_func(network_parameters)
 
-        for iteration in num_iterations:
+        for iteration in range(num_iterations):
             for data_batch in dataloader:
                 distribution_parameters = self.predict(data_batch)
                 loss = self.compute_loss(*distribution_parameters, data=data_batch)
