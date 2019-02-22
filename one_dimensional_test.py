@@ -82,6 +82,7 @@ class StatisticNetwork(to.nn.Module):
         self.post_pool_dense3 = to.nn.Linear(128, 2 * context_dimension)
 
     def forward(self, dataset):
+        
         dataset = self.embed_dense1(dataset)
         dataset = F.relu(dataset)
         dataset = self.embed_dense2(dataset)
@@ -98,7 +99,7 @@ class StatisticNetwork(to.nn.Module):
         dataset = self.post_pool_dense3(dataset)
 
         # Output means and variances, in that order
-        return dataset[:context_dimension], datset[context_dimension:]
+        return dataset[:context_dimension], dataset[context_dimension:]
 
 
 ### q(z_i | z_(i+1), c, x) parameterised by phi
@@ -148,12 +149,35 @@ class OneDimensionalDataset(to.utils.data.TensorDataset):
         data = to.tensor(data.reshape((10000, 200, 1)))
         super().__init__(data)
 
+class OneDimDataset(to.utils.data.Dataset):
+    def __init__(self):
+        super(OneDimDataset, self).__init__()
+        data = np.zeros((10000, 200))
+        means = np.random.uniform(-1, 1, 10000)
+        variances = np.random.uniform(0.5, 2, 10000)
+
+        data[0:2500] = np.random.exponential(np.sqrt(variances[0:2500]), (200, 2500)).T
+        data[2500:5000] = np.random.normal(means[2500:5000], np.sqrt(variances[2500:5000]), (200, 2500)).T
+        data[5000:7500] = np.random.uniform(means[5000:7500] - np.sqrt(3*variances[5000:7500]),
+                                            means[5000:7500] + np.sqrt(3*variances[5000:7500]), (200, 2500)).T
+        data[7500:10000] = np.random.laplace(means[7500:10000], np.sqrt(variances[7500:10000]/2), (200, 2500)).T
+
+        data = [to.as_tensor(ds.reshape(200,1), dtype=to.float) for ds in data]
+        self.data = data
+        
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def __len__(self):
+        return len(self.data)
+
 
 def main():
     optimiser_func = lambda parameters: to.optim.Adam(parameters,
                                                       lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0)
-    dataset = OneDimensionalDataset()
-    dataloader = to.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
+    dataset = OneDimDataset()
+    
+    dataloader = to.utils.data.DataLoader(dataset, batch_size=2, shuffle=True)
 
     network = ns.NeuralStatistician(1, 3,
                                     LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork)
