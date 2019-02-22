@@ -29,7 +29,7 @@ class LatentDecoder(to.nn.Module):
         w = F.relu(w)
 
         w = self.final(w)
-        # We've now computed mu_z and log sigma_c
+        # We've now computed mu_z and log var_c
         return w
 
 
@@ -38,7 +38,7 @@ class ObservationDecoder(to.nn.Module):
     def __init__(self):
         super().__init__()
 
-        # Input is dim(z) + dim(z)
+        # Input is dim(c) + dim(z)
         self.dense1 = to.nn.Linear(32 + context_dimension, 128)
         self.dense2 = to.nn.Linear(128, 128)
         self.dense3 = to.nn.Linear(128, 128)
@@ -60,8 +60,8 @@ class ObservationDecoder(to.nn.Module):
         w = F.relu(w)
 
         w = self.final(w)
-        # We've now computed mu_x and log sigma_x
-        return w
+        # We've now computed mu_x and log var_x
+        return w[0], w[1]
 
 
 ### q(c | D) parameterised by phi
@@ -87,7 +87,7 @@ class StatisticNetwork(to.nn.Module):
         dataset = self.embed_dense3(dataset)
         dataset = F.relu(dataset)
 
-        dataset = dataset.mean(dim=0)
+        dataset = dataset.mean(dim=1)
 
         dataset = self.post_pool_dense1(dataset)
         dataset = F.relu(dataset)
@@ -95,7 +95,8 @@ class StatisticNetwork(to.nn.Module):
         dataset = F.relu(dataset)
         dataset = self.post_pool_dense3(dataset)
 
-        return dataset
+        # Output means and variances, in that order
+        return dataset[:context_dimension], datset[context_dimension:]
 
 
 ### q(z_i | z_(i+1), c, x) parameterised by phi
@@ -127,7 +128,7 @@ class InferenceNetwork(to.nn.Module):
 
         w = self.final(w)
         # We've now computed mu_x and log sigma_x
-        return w
+        return w[:32], w[32:]
 
 
 class OneDimensionalDataset(to.utils.data.TensorDataset):
@@ -144,3 +145,11 @@ class OneDimensionalDataset(to.utils.data.TensorDataset):
 
         data = to.tensor(data.reshape((10000, 200, 1)))
         super().__init__(data)
+
+
+def main():
+    pass
+
+
+if __name__ == '__main__':
+    main()

@@ -2,22 +2,21 @@ import torch as to
 import torch.nn.functional as F
 import numpy as np
 
-import one_dimensional_test as ex
-
 
 class NeuralStatistician(object):
     """Tying-together class to hold references for a particular experiment"""
 
-    def __init__(self, num_stochastic_layers):
+    def __init__(self, num_stochastic_layers, context_dimension,
+                 LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork):
         super().__init__()
 
-        self.latent_decoders = [ex.LatentDecoder() for _ in range(num_stochastic_layers)]
-        self.observation_decoder = ex.ObservationDecoder()
-        self.statistic_network = ex.StatisticNetwork()
-        self.inference_networks = [ex.InferenceNetwork() for _ in range(num_stochastic_layers)]
+        self.latent_decoders = [LatentDecoder() for _ in range(num_stochastic_layers)]
+        self.observation_decoder = ObservationDecoder()
+        self.statistic_network = StatisticNetwork()
+        self.inference_networks = [InferenceNetwork() for _ in range(num_stochastic_layers)]
 
-        self.context_prior_mean = to.zeros(ex.context_dimension)
-        self.context_prior_cov = to.eye(ex.context_dimension)
+        self.context_prior_mean = to.zeros(context_dimension)
+        self.context_prior_cov = to.eye(context_dimension)
         self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
             loc=self.context_prior_mean, covariance_matrix=cself.context_prior_cov)
 
@@ -56,12 +55,19 @@ class NeuralStatistician(object):
 
     def predict(self, data):
         statistic_net_outputs = self.statistic_network(data)
-        contexts = self.reparameterise_normal(context_means, context_log_vars)
+        contexts = self.reparameterise_normal(*statistic_net_outputs)
 
         inference_net_outputs = [self.inference_networks[0](data, contexts)]
+        latent_dec_outputs = [self.latent_decoders[0](contexts)]
         latent_z = [self.reparameterise_normal(*inference_net_outputs)]
-        for inference_network in self.inference_networks[1:]:
-            inference_net_outputs.append(inference_network(data, contexts, inference_net_outputs[-1]))
+        for inference_network, latent_decoder in zip(self.inference_networks[1:], self.latent_decoders[1:]):
+            inference_net_outputs.append(inference_network(data, contexts, latent_z[-1]))
+            latent_dec_outputs.append(latent_decoder(contexts, latent_z[-1]))
+            latent_z.append(*self.reparameterise_normal(inference_net_outputs[-1]))
+
+        observation_dec_outputs = self.observation_decoder(to.stack(latent_z, dim=0), contexts)
+
+        return statistic_net_outputs, inference_net_outputs, latent_dec_outputs, observation_dec_outputs
 
 
     def reparameterise_normal(self, mean, log_var):
@@ -80,7 +86,7 @@ class NeuralStatistician(object):
 
         for iteration in num_iterations:
             distribution_parameters = self.predict(data)
-            loss = self.compute_loss(*distribution_parameters)
+            loss = self.compute_loss(*distribution_parameters, data=data)
 
             optimiser.zero_grad()
             loss.backward()
