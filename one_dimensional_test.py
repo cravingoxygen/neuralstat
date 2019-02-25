@@ -41,7 +41,7 @@ class ObservationDecoder(to.nn.Module):
         super().__init__()
 
         # Input is dim(c) + dim(z)
-        self.dense1 = to.nn.Linear(32 + context_dimension, 128)
+        self.dense1 = to.nn.Linear(3*32 + context_dimension, 128)
         self.dense2 = to.nn.Linear(128, 128)
         self.dense3 = to.nn.Linear(128, 128)
 
@@ -50,6 +50,7 @@ class ObservationDecoder(to.nn.Module):
 
     def forward(self, z, c):
         """Computes x from a concatenation (w) of latent variables z and context c."""
+        import pdb; pdb.set_trace()
         w = to.stack((z, c), dim=1)
 
         w = self.dense1(w)
@@ -119,6 +120,7 @@ class InferenceNetwork(to.nn.Module):
     def forward(self, x, c):
         """Computes x from a concatenation (w) of latent variables z and context c."""
         # Augment every data point in x with the context vector for that dataset
+        # CHECK: Is this correct?
         w = to.cat((c.unsqueeze(dim=1).expand(-1, x.shape[1], -1),
                     x),
                    dim=2)

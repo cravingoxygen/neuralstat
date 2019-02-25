@@ -60,7 +60,6 @@ class NeuralStatistician(object):
         statistic_net_outputs = self.statistic_network(data)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
 
-        import pdb; pdb.set_trace()
         inference_net_outputs = [self.inference_networks[0](data, contexts)]
         latent_dec_outputs = [self.latent_decoders[0](contexts)]
         latent_z = [self.reparameterise_normal(*inference_net_outputs)]
