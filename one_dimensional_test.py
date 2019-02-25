@@ -63,7 +63,7 @@ class ObservationDecoder(to.nn.Module):
 
         w = self.final(w)
         # We've now computed mu_x and log var_x
-        return w[0], w[1]
+        return w[:, 0], w[:, 1]
 
 
 ### q(c | D) parameterised by phi
@@ -99,7 +99,7 @@ class StatisticNetwork(to.nn.Module):
         dataset = self.post_pool_dense3(dataset)
 
         # Output means and variances, in that order
-        return dataset[:context_dimension], dataset[context_dimension:]
+        return dataset[:, :context_dimension], dataset[:, context_dimension:]
 
 
 ### q(z_i | z_(i+1), c, x) parameterised by phi
@@ -131,7 +131,7 @@ class InferenceNetwork(to.nn.Module):
 
         w = self.final(w)
         # We've now computed mu_x and log sigma_x
-        return w[:32], w[32:]
+        return w[:, :32], w[:, 32:]
 
 
 class OneDimensionalDataset(to.utils.data.TensorDataset):
@@ -148,6 +148,7 @@ class OneDimensionalDataset(to.utils.data.TensorDataset):
 
         data = to.tensor(data.reshape((10000, 200, 1)))
         super().__init__(data)
+
 
 class OneDimDataset(to.utils.data.Dataset):
     def __init__(self):

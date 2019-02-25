@@ -76,7 +76,7 @@ class NeuralStatistician(object):
     def reparameterise_normal(self, mean, log_var):
         """Draw samples from the given normal distribution via the
         reparameterisation trick"""
-        std_errors = Variable(to.randn(log_var.size())) #Create a new variable so that we can track the gradients
+        std_errors = to.randn(log_var.size(), requires_grad=True)
         return mean + to.exp(0.5 * log_var) * std_errors
         
 
