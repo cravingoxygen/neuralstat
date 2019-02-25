@@ -26,9 +26,12 @@ class NeuralStatistician(object):
         """Compute the KL divergence between two diagonal Gaussians, where
         diag_cov_x is a 1D vector containing the diagonal elements of the
         xth covariance matrix."""
+        # We expect .shape[1] to be the same for all input tensors
+        ndims = mean_1.shape[1]
         return 0.5 * (
-            to.dot(1 / diag_cov_1, diag_cov_0) +
-            to.dot((mean_1 - mean_0) ** 2, 1 / diag_cov_1) - mean_0.size()[0] +
+            #Insert dummy dimensions and use batch multiply
+            to.bmm((1 / diag_cov_1).view(-1, 1, ndims), diag_cov_0.view(-1, ndims, 1)) + 
+            to.bmm((mean_1 - mean_0).view(-1, 1, ndims) ** 2, (1 / diag_cov_1).view(-1, ndims, 1)) - mean_0.size()[0] +
             to.sum(to.log(mean_1)) - to.sum(to.log(mean_0))
         )
 
@@ -37,7 +40,7 @@ class NeuralStatistician(object):
         # Context divergence
         context_mean, context_log_cov = context_output
         context_divergence = self.normal_kl_divergence(context_mean, to.exp(context_log_cov),
-                                                       self.context_prior_mean, self.context_prior_cov.expand_as(context_log_cov))
+                                                       self.context_prior_mean.expand_as(context_mean), self.context_prior_cov.expand_as(context_log_cov))
 
         # Latent divergence
         # For computational efficiency, draw a single sample context from q(c, z | D, phi)
