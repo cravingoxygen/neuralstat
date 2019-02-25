@@ -62,13 +62,13 @@ class NeuralStatistician(object):
 
         inference_net_outputs = [self.inference_networks[0](data, contexts)]
         latent_dec_outputs = [self.latent_decoders[0](contexts)]
-        latent_z = [self.reparameterise_normal(*inference_net_outputs)]
+        latent_z = [self.reparameterise_normal(*inference_net_outputs[0])]
         for inference_network, latent_decoder in zip(self.inference_networks[1:], self.latent_decoders[1:]):
             inference_net_outputs.append(inference_network(data, contexts, latent_z[-1]))
             latent_dec_outputs.append(latent_decoder(contexts, latent_z[-1]))
             latent_z.append(*self.reparameterise_normal(inference_net_outputs[-1]))
 
-        observation_dec_outputs = self.observation_decoder(to.stack(latent_z, dim=0), contexts)
+        observation_dec_outputs = self.observation_decoder(to.cat(latent_z, dim=2), contexts)
 
         return statistic_net_outputs, inference_net_outputs, latent_dec_outputs, observation_dec_outputs
 
@@ -94,6 +94,7 @@ class NeuralStatistician(object):
         optimiser = optimiser_func(network_parameters)
 
         for iteration in range(num_iterations):
+            print("Commencing iteration {}/{}...".format(iteration+1, num_iterations))
             for data_batch in dataloader:
                 distribution_parameters = self.predict(data_batch)
                 loss = self.compute_loss(*distribution_parameters, data=data_batch)

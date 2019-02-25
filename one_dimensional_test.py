@@ -41,7 +41,7 @@ class ObservationDecoder(to.nn.Module):
         super().__init__()
 
         # Input is dim(c) + dim(z)
-        self.dense1 = to.nn.Linear(3*32 + context_dimension, 128)
+        self.dense1 = to.nn.Linear(32 + context_dimension, 128)
         self.dense2 = to.nn.Linear(128, 128)
         self.dense3 = to.nn.Linear(128, 128)
 
@@ -50,8 +50,11 @@ class ObservationDecoder(to.nn.Module):
 
     def forward(self, z, c):
         """Computes x from a concatenation (w) of latent variables z and context c."""
-        import pdb; pdb.set_trace()
-        w = to.stack((z, c), dim=1)
+        # Augment every latent point in z with the context vector for that dataset
+        # CHECK: Is this correct?
+        w = to.cat((z,
+                    c.unsqueeze(dim=1).expand(-1, z.shape[1], -1)),
+                   dim=2)
 
         w = self.dense1(w)
         w = F.relu(w)
