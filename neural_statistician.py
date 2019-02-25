@@ -26,7 +26,6 @@ class NeuralStatistician(object):
         """Compute the KL divergence between two diagonal Gaussians, where
         diag_cov_x is a 1D vector containing the diagonal elements of the
         xth covariance matrix."""
-        import pdb; pdb.set_trace()
         return 0.5 * (
             to.dot(1 / diag_cov_1, diag_cov_0) +
             to.dot((mean_1 - mean_0) ** 2, 1 / diag_cov_1) - mean_0.size()[0] +
@@ -37,7 +36,6 @@ class NeuralStatistician(object):
         """Compute the full model loss function"""
         # Context divergence
         context_mean, context_log_cov = context_output
-        import pdb; pdb.set_trace()
         context_divergence = self.normal_kl_divergence(context_mean, to.exp(context_log_cov),
                                                        self.context_prior_mean, self.context_prior_cov.expand_as(context_log_cov))
 
