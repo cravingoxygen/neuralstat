@@ -118,7 +118,10 @@ class InferenceNetwork(to.nn.Module):
 
     def forward(self, x, c):
         """Computes x from a concatenation (w) of latent variables z and context c."""
-        w = to.stack((c, x), dim=1)
+        # Augment every data point in x with the context vector for that dataset
+        w = to.cat((c.unsqueeze(dim=1).expand(-1, x.shape[1], -1),
+                    x),
+                   dim=2)
 
         w = self.dense1(w)
         w = F.relu(w)
