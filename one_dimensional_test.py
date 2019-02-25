@@ -32,7 +32,7 @@ class LatentDecoder(to.nn.Module):
 
         w = self.final(w)
         # We've now computed mu_z and log var_c
-        return w
+        return w[:,:32], w[:,32:]
 
 
 ### p(x | z_(1:L), c) parameterised by theta
