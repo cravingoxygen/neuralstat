@@ -60,6 +60,7 @@ class NeuralStatistician(object):
         statistic_net_outputs = self.statistic_network(data)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
 
+        import pdb; pdb.set_trace()
         inference_net_outputs = [self.inference_networks[0](data, contexts)]
         latent_dec_outputs = [self.latent_decoders[0](contexts)]
         latent_z = [self.reparameterise_normal(*inference_net_outputs)]
@@ -76,7 +77,7 @@ class NeuralStatistician(object):
     def reparameterise_normal(self, mean, log_var):
         """Draw samples from the given normal distribution via the
         reparameterisation trick"""
-        std_errors = to.randn(log_var.size(), requires_grad=True)
+        std_errors = to.randn(log_var.size())
         return mean + to.exp(0.5 * log_var) * std_errors
         
 
