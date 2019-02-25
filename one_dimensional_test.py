@@ -134,7 +134,7 @@ class InferenceNetwork(to.nn.Module):
 
         w = self.final(w)
         # We've now computed mu_x and log sigma_x
-        return w[:, :32], w[:, 32:]
+        return w[:, :, :32], w[:, :, 32:]
 
 
 class OneDimensionalDataset(to.utils.data.TensorDataset):
