@@ -17,14 +17,16 @@ class NeuralStatistician(object):
         self.inference_networks = [InferenceNetwork() for _ in range(num_stochastic_layers)]
 
         self.context_prior_mean = to.zeros(context_dimension)
-        self.context_prior_cov = to.eye(context_dimension)
+        # CHECK: Is it OK to restrict ourselvs to a diagonal covariance matrix for the prior?
+        self.context_prior_cov = to.ones(context_dimension)
         self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
-            loc=self.context_prior_mean, covariance_matrix=self.context_prior_cov)
+            loc=self.context_prior_mean, covariance_matrix=to.diag(self.context_prior_cov))
 
     def normal_kl_divergence(self, mean_0, diag_cov_0, mean_1, diag_cov_1):
         """Compute the KL divergence between two diagonal Gaussians, where
         diag_cov_x is a 1D vector containing the diagonal elements of the
         xth covariance matrix."""
+        import pdb; pdb.set_trace()
         return 0.5 * (
             to.dot(1 / diag_cov_1, diag_cov_0) +
             to.dot((mean_1 - mean_0) ** 2, 1 / diag_cov_1) - mean_0.size()[0] +
@@ -35,8 +37,9 @@ class NeuralStatistician(object):
         """Compute the full model loss function"""
         # Context divergence
         context_mean, context_log_cov = context_output
+        import pdb; pdb.set_trace()
         context_divergence = self.normal_kl_divergence(context_mean, to.exp(context_log_cov),
-                                                       self.context_prior_mean, self.context_prior_cov)
+                                                       self.context_prior_mean, self.context_prior_cov.expand_as(context_log_cov))
 
         # Latent divergence
         # For computational efficiency, draw a single sample context from q(c, z | D, phi)
