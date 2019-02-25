@@ -27,30 +27,34 @@ class NeuralStatistician(object):
         diag_cov_x is a 1D vector containing the diagonal elements of the
         xth covariance matrix."""
         import pdb; pdb.set_trace()
-        #We expect .shape[1] to be the same for all input tensors
-        ndims = mean_1.shape[1]
+        
+        #Use batch multiply which requires reshaping the data to get desired dot products
+        #TODO: Sanity check these
+        batch_size = mean_1.shape[0]
         return 0.5 * (
-            #Insert dummy dimensions and use batch multiply
-            to.bmm((1 / diag_cov_1).view(-1, 1, ndims), diag_cov_0.view(-1, ndims, 1)) + 
-            to.bmm((mean_1 - mean_0).view(-1, 1, ndims) ** 2, (1 / diag_cov_1).view(-1, ndims, 1)) - mean_0.size()[0] +
+            to.bmm((1 / diag_cov_1).view(batch_size, 1, -1), diag_cov_0.view(batch_size, -1, 1)) + 
+            to.bmm(((mean_1 - mean_0).view(batch_size, 1, -1) ** 2), (1 / diag_cov_1).view(batch_size, -1, 1)) - 
+            batch_size +
             to.sum(to.log(mean_1)) - to.sum(to.log(mean_0))
-        )
+        ).squeeze()
 
     def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data):
         """Compute the full model loss function"""
         # Context divergence
         context_mean, context_log_cov = context_output
-        import pdb; pdb.set_trace()
         context_divergence = self.normal_kl_divergence(context_mean, to.exp(context_log_cov),
                                                        self.context_prior_mean.expand_as(context_mean), self.context_prior_cov.expand_as(context_log_cov))
 
         # Latent divergence
         # For computational efficiency, draw a single sample context from q(c, z | D, phi)
         # rather than computing the expectation properly.
-        latent_divergence = to.tensor(0.0)
+        latent_divergence = to.zeros(context_divergence.shape)
+        import pdb; pdb.set_trace()
         for ((inference_mu, inference_log_cov), (decoder_mu, decoder_log_cov)) in zip(inference_outputs, decoder_outputs):
+            #Expand the decoder's outputs to be the same shape as the inference networks
+            # i.e. batch_size x dataset_size x data_dimensionality (for mean and log_var)
             latent_divergence += self.normal_kl_divergence(inference_mu, to.exp(inference_log_cov),
-                                                           decoder_mu, to.exp(decoder_log_cov))
+                                                           decoder_mu.unsqueeze(1).expand_as(inference_mu), to.exp(decoder_log_cov).unsqueeze(1).expand_as(inference_log_cov))
 
         # Reconstruction loss
         observation_decoder_mean, observation_decoder_log_cov = observation_decoder_outputs
