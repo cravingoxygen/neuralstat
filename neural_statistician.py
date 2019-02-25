@@ -26,7 +26,6 @@ class NeuralStatistician(object):
         """Compute the KL divergence between two diagonal Gaussians, where
         diag_cov_x is a 1D vector containing the diagonal elements of the
         xth covariance matrix."""
-        import pdb; pdb.set_trace()
         
         #Use batch multiply which requires reshaping the data to get desired dot products
         #TODO: Sanity check these
@@ -49,7 +48,6 @@ class NeuralStatistician(object):
         # For computational efficiency, draw a single sample context from q(c, z | D, phi)
         # rather than computing the expectation properly.
         latent_divergence = to.zeros(context_divergence.shape)
-        import pdb; pdb.set_trace()
         for ((inference_mu, inference_log_cov), (decoder_mu, decoder_log_cov)) in zip(inference_outputs, decoder_outputs):
             #Expand the decoder's outputs to be the same shape as the inference networks
             # i.e. batch_size x dataset_size x data_dimensionality (for mean and log_var)
@@ -58,10 +56,14 @@ class NeuralStatistician(object):
 
         # Reconstruction loss
         observation_decoder_mean, observation_decoder_log_cov = observation_decoder_outputs
+        #import pdb; pdb.set_trace()
+        #CHECK: Check reconstruction loss accumulation logic
         reconstruction_loss = to.distributions.normal.Normal(
-            loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data)
+            loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=1)
 
-        return context_divergence + latent_divergence + reconstruction_loss
+        #Logically, it makes sense to keep the divergences separate up until here. 
+        #But we can probably optimize that
+        return (context_divergence + latent_divergence + reconstruction_loss).sum()
 
 
     def predict(self, data):
