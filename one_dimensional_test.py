@@ -193,6 +193,8 @@ def main():
                                     LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork)
     network.train(dataloader, 10, optimiser_func)
 
+    return network
+
 
 if __name__ == '__main__':
-    main()
+    network = main()

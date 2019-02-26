@@ -29,12 +29,12 @@ class NeuralStatistician(object):
         
         #Use batch multiply which requires reshaping the data to get desired dot products
         #TODO: Sanity check these
-        batch_size = mean_1.shape[0]
+        batch_size = mean_0.shape[0]
         return 0.5 * (
             to.bmm((1 / diag_cov_1).view(batch_size, 1, -1), diag_cov_0.view(batch_size, -1, 1)) + 
             to.bmm(((mean_1 - mean_0).view(batch_size, 1, -1) ** 2), (1 / diag_cov_1).view(batch_size, -1, 1)) - 
-            batch_size +
-            to.sum(to.log(diag_cov_1)) - to.sum(to.log(diag_cov_0))
+            mean_0.shape[-1] +
+            to.sum(to.log(diag_cov_1).view(batch_size, 1, -1), dim=-1, keepdim=True) - to.sum(to.log(diag_cov_0).view(batch_size, 1, -1), dim=-1, keepdim=True)
         ).squeeze()
 
     def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data):
