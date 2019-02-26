@@ -66,8 +66,9 @@ class ObservationDecoder(to.nn.Module):
         w = F.relu(w)
 
         w = self.final(w)
+        
         # We've now computed mu_x and log var_x
-        return w[:, 0], w[:, 1]
+        return w[:, :, 0].unsqueeze(2), w[:, :, 1].unsqueeze(2)
 
 
 ### q(c | D) parameterised by phi
