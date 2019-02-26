@@ -34,7 +34,7 @@ class NeuralStatistician(object):
             to.bmm((1 / diag_cov_1).view(batch_size, 1, -1), diag_cov_0.view(batch_size, -1, 1)) + 
             to.bmm(((mean_1 - mean_0).view(batch_size, 1, -1) ** 2), (1 / diag_cov_1).view(batch_size, -1, 1)) - 
             batch_size +
-            to.sum(to.log(mean_1)) - to.sum(to.log(mean_0))
+            to.sum(to.log(diag_cov_1)) - to.sum(to.log(diag_cov_0))
         ).squeeze()
 
     def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data):
@@ -56,14 +56,14 @@ class NeuralStatistician(object):
 
         # Reconstruction loss
         observation_decoder_mean, observation_decoder_log_cov = observation_decoder_outputs
-        #import pdb; pdb.set_trace()
+        
         #CHECK: Check reconstruction loss accumulation logic
         reconstruction_loss = to.distributions.normal.Normal(
-            loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=1)
+            loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=1).squeeze(dim=1)
 
         #Logically, it makes sense to keep the divergences separate up until here. 
         #But we can probably optimize that
-        return (context_divergence + latent_divergence + reconstruction_loss).sum()
+        return (context_divergence + latent_divergence - reconstruction_loss).sum(dim=0)
 
 
     def predict(self, data):
@@ -110,6 +110,7 @@ class NeuralStatistician(object):
             for data_batch in dataloader:
                 distribution_parameters = self.predict(data_batch)
                 loss = self.compute_loss(*distribution_parameters, data=data_batch)
+                print("        Batch loss: {}".format(loss))
 
                 optimiser.zero_grad()
                 loss.backward()

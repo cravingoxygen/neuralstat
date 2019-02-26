@@ -187,11 +187,11 @@ def main():
                                                       lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0)
     dataset = OneDimDataset()
     
-    dataloader = to.utils.data.DataLoader(dataset, batch_size=2, shuffle=True)
+    dataloader = to.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
 
     network = ns.NeuralStatistician(1, 3,
                                     LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork)
-    network.train(dataloader, 100, optimiser_func)
+    network.train(dataloader, 10, optimiser_func)
 
 
 if __name__ == '__main__':
