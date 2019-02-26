@@ -3,6 +3,9 @@ import torch.utils.data
 import torch.nn.functional as F
 import numpy as np
 
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+
 import neural_statistician as ns
 
 context_dimension = 3
@@ -182,9 +185,24 @@ class OneDimDataset(to.utils.data.Dataset):
         return len(self.data)
 
 
+def plot_context_means(network, dataset):
+    with to.no_grad():
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        dataloader = to.utils.data.DataLoader(dataset, batch_size=2500, shuffle=False)
+
+        colours = ['b', 'r', 'y', 'g']
+        for batch, colour in zip(dataloader, colours):
+            statistic_net_outputs = network.predict(batch[:200])[0]
+            context_means = statistic_net_outputs[0]
+            ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
+        plt.show()
+
+
 def main():
-    optimiser_func = lambda parameters: to.optim.Adam(parameters,
-                                                      lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0)
+    optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
+
     dataset = OneDimDataset()
     
     dataloader = to.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)

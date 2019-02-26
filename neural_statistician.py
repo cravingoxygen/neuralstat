@@ -1,7 +1,7 @@
 import torch as to
 import torch.nn.functional as F
 import numpy as np
-from torch.autograd import Variable
+import pickle
 
 
 class NeuralStatistician(object):
@@ -115,4 +115,15 @@ class NeuralStatistician(object):
                 optimiser.zero_grad()
                 loss.backward()
                 optimiser.step()
+
+
+    def serialise(self, path):
+        with open(path, 'wb') as file:
+            pickle.dump(self, file)
+
+
+    @staticmethod
+    def deserialise(path):
+        with open(path, 'rb') as file:
+            pickle.load(file)
 
