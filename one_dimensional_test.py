@@ -179,7 +179,7 @@ class OneDimDataset(to.utils.data.Dataset):
         self.data = data
         
     def __getitem__(self, index):
-        return self.data[index]
+        return {'dataset': self.data[index], 'label': int(index/2500)}
 
     def __len__(self):
         return len(self.data)
@@ -210,6 +210,8 @@ def main():
     network = ns.NeuralStatistician(1, 3,
                                     LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork)
     network.train(dataloader, 10, optimiser_func)
+
+    network.serialise("trained_model")
 
     return network
 

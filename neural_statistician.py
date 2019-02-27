@@ -108,8 +108,8 @@ class NeuralStatistician(object):
         for iteration in range(num_iterations):
             print("Commencing iteration {}/{}...".format(iteration+1, num_iterations))
             for data_batch in dataloader:
-                distribution_parameters = self.predict(data_batch)
-                loss = self.compute_loss(*distribution_parameters, data=data_batch)
+                distribution_parameters = self.predict(data_batch['dataset'])
+                loss = self.compute_loss(*distribution_parameters, data=data_batch['dataset'])
                 print("        Batch loss: {}".format(loss))
 
                 optimiser.zero_grad()
