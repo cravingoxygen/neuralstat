@@ -3,6 +3,8 @@ import torch.nn.functional as F
 import numpy as np
 import pickle
 
+import matplotlib.pyplot as plt
+
 
 class NeuralStatistician(object):
     """Tying-together class to hold references for a particular experiment"""
@@ -22,6 +24,12 @@ class NeuralStatistician(object):
         self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
             loc=self.context_prior_mean, covariance_matrix=to.diag(self.context_prior_cov))
 
+        self.context_divergence_history = []
+        self.latent_divergence_history = []
+        self.reconstruction_loss_history = []
+        self.counter = 0
+
+
     def normal_kl_divergence(self, mean_0, diag_cov_0, mean_1, diag_cov_1):
         """Compute the KL divergence between two diagonal Gaussians, where
         diag_cov_x is a 1D vector containing the diagonal elements of the
@@ -39,6 +47,8 @@ class NeuralStatistician(object):
 
     def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data):
         """Compute the full model loss function"""
+        sample_size = data.shape[1]
+
         # Context divergence
         context_mean, context_log_cov = context_output
         context_divergence = self.normal_kl_divergence(context_mean, to.exp(context_log_cov),
@@ -53,6 +63,7 @@ class NeuralStatistician(object):
             # i.e. batch_size x dataset_size x data_dimensionality (for mean and log_var)
             latent_divergence += self.normal_kl_divergence(inference_mu, to.exp(inference_log_cov),
                                                            decoder_mu.unsqueeze(1).expand_as(inference_mu), to.exp(decoder_log_cov).unsqueeze(1).expand_as(inference_log_cov))
+        latent_divergence /= sample_size
 
         # Reconstruction loss
         observation_decoder_mean, observation_decoder_log_cov = observation_decoder_outputs
@@ -60,6 +71,19 @@ class NeuralStatistician(object):
         #CHECK: Check reconstruction loss accumulation logic
         reconstruction_loss = to.distributions.normal.Normal(
             loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=1).squeeze(dim=1)
+        reconstruction_loss /= sample_size
+
+        self.context_divergence_history.append(context_divergence.sum().item())
+        self.latent_divergence_history.append(latent_divergence.sum().item())
+        self.reconstruction_loss_history.append(-reconstruction_loss.sum().item())
+
+        self.counter += 1
+        if self.counter % 1000 == 0:
+            plt.plot(self.context_divergence_history, 'r')
+            plt.plot(self.latent_divergence_history, 'g')
+            plt.plot(self.reconstruction_loss_history, 'b')
+            plt.show()
+
 
         #Logically, it makes sense to keep the divergences separate up until here. 
         #But we can probably optimize that
