@@ -18,11 +18,18 @@ class NeuralStatistician(object):
         self.statistic_network = StatisticNetwork()
         self.inference_networks = [InferenceNetwork() for _ in range(num_stochastic_layers)]
 
+        # for network in self.latent_decoders:
+        #     network.apply(NeuralStatistician.init_weights)
+        # self.observation_decoder.apply(NeuralStatistician.init_weights)
+        # self.statistic_network.apply(NeuralStatistician.init_weights)
+        # for network in self.inference_networks:
+        #     network.apply(NeuralStatistician.init_weights)
+
         self.context_prior_mean = to.zeros(context_dimension)
         # CHECK: Is it OK to restrict ourselvs to a diagonal covariance matrix for the prior?
         self.context_prior_cov = to.ones(context_dimension)
-        self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
-            loc=self.context_prior_mean, covariance_matrix=to.diag(self.context_prior_cov))
+        # self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
+        #     loc=self.context_prior_mean, covariance_matrix=to.diag(self.context_prior_cov))
 
         self.context_divergence_history = []
         self.latent_divergence_history = []
@@ -155,3 +162,8 @@ class NeuralStatistician(object):
         with open(path, 'rb') as file:
             pickle.load(file)
 
+
+    @staticmethod
+    def init_weights(m):
+        to.nn.init.xavier_normal(m.weight.data, gain=to.nn.init.calculate_gain('relu'))
+        to.nn.init.constant(m.bias.data, 0)
