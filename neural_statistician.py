@@ -18,15 +18,23 @@ class NeuralStatistician(object):
         self.statistic_network = StatisticNetwork()
         self.inference_networks = [InferenceNetwork() for _ in range(num_stochastic_layers)]
 
+        # for network in self.latent_decoders:
+        #     network.apply(NeuralStatistician.init_weights)
+        # self.observation_decoder.apply(NeuralStatistician.init_weights)
+        # self.statistic_network.apply(NeuralStatistician.init_weights)
+        # for network in self.inference_networks:
+        #     network.apply(NeuralStatistician.init_weights)
+
         self.context_prior_mean = to.zeros(context_dimension)
         # CHECK: Is it OK to restrict ourselvs to a diagonal covariance matrix for the prior?
         self.context_prior_cov = to.ones(context_dimension)
-        self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
-            loc=self.context_prior_mean, covariance_matrix=to.diag(self.context_prior_cov))
+        # self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
+        #     loc=self.context_prior_mean, covariance_matrix=to.diag(self.context_prior_cov))
 
         self.context_divergence_history = []
         self.latent_divergence_history = []
         self.reconstruction_loss_history = []
+        self.loss_history = []
         self.counter = 0
 
 
@@ -35,15 +43,13 @@ class NeuralStatistician(object):
         diag_cov_x is a 1D vector containing the diagonal elements of the
         xth covariance matrix."""
         
-        #Use batch multiply which requires reshaping the data to get desired dot products
-        #TODO: Sanity check these
         batch_size = mean_0.shape[0]
         return 0.5 * (
-            to.bmm((1 / diag_cov_1).view(batch_size, 1, -1), diag_cov_0.view(batch_size, -1, 1)) + 
-            to.bmm(((mean_1 - mean_0).view(batch_size, 1, -1) ** 2), (1 / diag_cov_1).view(batch_size, -1, 1)) - 
+            ((1 / diag_cov_1) * diag_cov_0).sum(dim=2) + 
+            (((mean_1 - mean_0) ** 2) * (1 / diag_cov_1)).sum(dim=2) - 
             mean_0.shape[-1] +
-            to.sum(to.log(diag_cov_1).view(batch_size, 1, -1), dim=-1, keepdim=True) - to.sum(to.log(diag_cov_0).view(batch_size, 1, -1), dim=-1, keepdim=True)
-        ).squeeze()
+            to.sum(to.log(diag_cov_1), dim=-1) - to.sum(to.log(diag_cov_0), dim=-1)
+        ).sum(dim=1)
 
     def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data):
         """Compute the full model loss function"""
@@ -51,8 +57,11 @@ class NeuralStatistician(object):
 
         # Context divergence
         context_mean, context_log_cov = context_output
-        context_divergence = self.normal_kl_divergence(context_mean, to.exp(context_log_cov),
-                                                       self.context_prior_mean.expand_as(context_mean), self.context_prior_cov.expand_as(context_log_cov))
+        # Handle this case without separate data points by introducing a dummy
+        # dimension, as if there were exactly 1 data point
+        context_divergence = self.normal_kl_divergence(context_mean.unsqueeze(dim=1), to.exp(context_log_cov).unsqueeze(dim=1),
+                                                       self.context_prior_mean.expand_as(context_mean.unsqueeze(dim=1)), self.context_prior_cov.expand_as(context_log_cov.unsqueeze(dim=1)))
+        context_divergence *= sample_size
 
         # Latent divergence
         # For computational efficiency, draw a single sample context from q(c, z | D, phi)
@@ -63,7 +72,6 @@ class NeuralStatistician(object):
             # i.e. batch_size x dataset_size x data_dimensionality (for mean and log_var)
             latent_divergence += self.normal_kl_divergence(inference_mu, to.exp(inference_log_cov),
                                                            decoder_mu.unsqueeze(1).expand_as(inference_mu), to.exp(decoder_log_cov).unsqueeze(1).expand_as(inference_log_cov))
-        latent_divergence /= sample_size
 
         # Reconstruction loss
         observation_decoder_mean, observation_decoder_log_cov = observation_decoder_outputs
@@ -71,17 +79,20 @@ class NeuralStatistician(object):
         #CHECK: Check reconstruction loss accumulation logic
         reconstruction_loss = to.distributions.normal.Normal(
             loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=1).squeeze(dim=1)
-        reconstruction_loss /= sample_size
 
         self.context_divergence_history.append(context_divergence.sum().item())
         self.latent_divergence_history.append(latent_divergence.sum().item())
         self.reconstruction_loss_history.append(-reconstruction_loss.sum().item())
+        self.loss_history.append(self.context_divergence_history[-1] +
+                                 self.latent_divergence_history[-1] +
+                                 self.reconstruction_loss_history[-1])
 
         self.counter += 1
-        if self.counter % 1000 == 0:
+        if self.counter % 625 == 0:
             plt.plot(self.context_divergence_history, 'r')
             plt.plot(self.latent_divergence_history, 'g')
             plt.plot(self.reconstruction_loss_history, 'b')
+            plt.plot(self.loss_history, 'k')
             plt.show()
 
 
@@ -151,3 +162,8 @@ class NeuralStatistician(object):
         with open(path, 'rb') as file:
             pickle.load(file)
 
+
+    @staticmethod
+    def init_weights(m):
+        to.nn.init.xavier_normal(m.weight.data, gain=to.nn.init.calculate_gain('relu'))
+        to.nn.init.constant(m.bias.data, 0)

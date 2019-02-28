@@ -146,22 +146,6 @@ class InferenceNetwork(to.nn.Module):
         return w[:, :, :32], w[:, :, 32:]
 
 
-class OneDimensionalDataset(to.utils.data.TensorDataset):
-    def __init__(self):
-        data = np.zeros((10000, 200))
-        means = np.random.uniform(-1, 1, 10000)
-        variances = np.random.uniform(0.5, 2, 10000)
-
-        data[0:2500] = np.random.exponential(np.sqrt(variances[0:2500]), (200, 2500)).T
-        data[2500:5000] = np.random.normal(means[2500:5000], np.sqrt(variances[2500:5000]), (200, 2500)).T
-        data[5000:7500] = np.random.uniform(means[5000:7500] - np.sqrt(3*variances[5000:7500]),
-                                            means[5000:7500] + np.sqrt(3*variances[5000:7500]), (200, 2500)).T
-        data[7500:10000] = np.random.laplace(means[7500:10000], np.sqrt(variances[7500:10000]/2), (200, 2500)).T
-
-        data = to.tensor(data.reshape((10000, 200, 1)))
-        super().__init__(data)
-
-
 class OneDimDataset(to.utils.data.Dataset):
     def __init__(self):
         super(OneDimDataset, self).__init__()
@@ -170,10 +154,10 @@ class OneDimDataset(to.utils.data.Dataset):
         variances = np.random.uniform(0.5, 2, 10000)
 
         data[0:2500] = np.random.exponential(np.sqrt(variances[0:2500]), (200, 2500)).T
-        data[2500:5000] = np.random.normal(means[2500:5000], np.sqrt(variances[2500:5000]), (200, 2500)).T
-        data[5000:7500] = np.random.uniform(means[5000:7500] - np.sqrt(3*variances[5000:7500]),
-                                            means[5000:7500] + np.sqrt(3*variances[5000:7500]), (200, 2500)).T
-        data[7500:10000] = np.random.laplace(means[7500:10000], np.sqrt(variances[7500:10000]/2), (200, 2500)).T
+        data[2500:5000] = np.random.normal(means[2500:5000]+10, np.sqrt(variances[2500:5000]), (200, 2500)).T
+        data[5000:7500] = np.random.uniform(means[5000:7500]+5 - np.sqrt(3*variances[5000:7500]),
+                                            means[5000:7500]+5 + np.sqrt(3*variances[5000:7500]), (200, 2500)).T
+        data[7500:10000] = np.random.laplace(means[7500:10000]-10, np.sqrt(variances[7500:10000]/2), (200, 2500)).T
 
         data = [to.as_tensor(ds.reshape(200,1), dtype=to.float) for ds in data]
         self.data = data
@@ -194,7 +178,7 @@ def plot_context_means(network, dataset):
 
         colours = ['b', 'r', 'y', 'g']
         for batch, colour in zip(dataloader, colours):
-            statistic_net_outputs = network.predict(batch[:200])[0]
+            statistic_net_outputs = network.predict(batch["dataset"][:200])[0]
             context_means = statistic_net_outputs[0]
             ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
         plt.show()
