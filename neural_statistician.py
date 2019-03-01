@@ -53,6 +53,7 @@ class NeuralStatistician(object):
 
     def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data):
         """Compute the full model loss function"""
+        batch_size = data.shape[0]
         sample_size = data.shape[1]
 
         # Context divergence
@@ -61,7 +62,7 @@ class NeuralStatistician(object):
         # dimension, as if there were exactly 1 data point
         context_divergence = self.normal_kl_divergence(context_mean.unsqueeze(dim=1), to.exp(context_log_cov).unsqueeze(dim=1),
                                                        self.context_prior_mean.expand_as(context_mean.unsqueeze(dim=1)), self.context_prior_cov.expand_as(context_log_cov.unsqueeze(dim=1)))
-        context_divergence *= sample_size
+        # context_divergence *= sample_size
 
         # Latent divergence
         # For computational efficiency, draw a single sample context from q(c, z | D, phi)
@@ -98,7 +99,7 @@ class NeuralStatistician(object):
 
         #Logically, it makes sense to keep the divergences separate up until here. 
         #But we can probably optimize that
-        return (context_divergence + latent_divergence - reconstruction_loss).sum(dim=0)
+        return (context_divergence + latent_divergence - reconstruction_loss).sum(dim=0) / (sample_size * batch_size)
 
 
     def predict(self, data):
