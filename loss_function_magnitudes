@@ -1,0 +1,4 @@
+Quantity		Our Method	Their Method
+Reconstruction Loss	1		/(200 * 16)
+Context Divergence	1		/200 /(200 * 16)
+Latent Divergence	1		/(200 * 16)
