@@ -195,14 +195,14 @@ def plot_context_means(network, timestamp, dataset=OneDimDataset(4000, 200), ite
         else:
             plt.show()
         
-def generate_samples_like(network, single_dataset, num_samples, timestamp, iteration=0):
+def generate_samples_like(network, single_dataset, timestamp, iteration=0):
     with to.no_grad():
         fig = plt.figure()
         
         reshaped_dataset = torch.tensor(single_dataset).view(1, -1, 1)
         
-        samples = network.generate_like(reshaped_dataset, 1000)
-        plt.hist(samples[0], bins=100)
+        samples = network.generate_like(reshaped_dataset)
+        plt.hist(samples, bins=100)
         plt.savefig("results/{}/samples_{}".format(timestamp, iteration))
         plt.close()
         
