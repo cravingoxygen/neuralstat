@@ -147,53 +147,59 @@ class InferenceNetwork(to.nn.Module):
 
 
 class OneDimDataset(to.utils.data.Dataset):
-    def __init__(self):
+    def __init__(self, number_of_datasets=10000, number_of_samples=200):
         super(OneDimDataset, self).__init__()
-        data = np.zeros((10000, 200))
-        means = np.random.uniform(-1, 1, 10000)
-        variances = np.random.uniform(0.5, 2, 10000)
+        data = np.zeros((number_of_datasets, number_of_samples))
+        means = np.random.uniform(-1, 1, number_of_datasets)
+        variances = np.random.uniform(0.5, 2, number_of_datasets)
+        
+        block_size = int(number_of_datasets/4)
+        
+        data[0:block_size] = np.random.exponential(np.sqrt(variances[0:block_size]), (number_of_samples, block_size)).T
+        data[block_size:block_size*2] = np.random.normal(means[block_size:block_size*2], np.sqrt(variances[block_size:block_size*2]), (number_of_samples, block_size)).T
+        data[block_size*2:block_size*3] = np.random.uniform(means[block_size*2:block_size*3] - np.sqrt(3*variances[block_size*2:block_size*3]),
+                                            means[block_size*2:block_size*3] + np.sqrt(3*variances[block_size*2:block_size*3]), (number_of_samples, block_size)).T
+        data[block_size*3:block_size*4] = np.random.laplace(means[block_size*3:block_size*4], np.sqrt(variances[block_size*3:block_size*4]/2), (number_of_samples, block_size)).T
 
-        data[0:2500] = np.random.exponential(np.sqrt(variances[0:2500]), (200, 2500)).T
-        data[2500:5000] = np.random.normal(means[2500:5000], np.sqrt(variances[2500:5000]), (200, 2500)).T
-        data[5000:7500] = np.random.uniform(means[5000:7500] - np.sqrt(3*variances[5000:7500]),
-                                            means[5000:7500] + np.sqrt(3*variances[5000:7500]), (200, 2500)).T
-        data[7500:10000] = np.random.laplace(means[7500:10000], np.sqrt(variances[7500:10000]/2), (200, 2500)).T
-
-        data = [to.as_tensor(ds.reshape(200,1), dtype=to.float) for ds in data]
+        data = [to.as_tensor(ds.reshape(number_of_samples,1), dtype=to.float) for ds in data]
         self.data = data
+        self.block_size = block_size
         
     def __getitem__(self, index):
-        return {'dataset': self.data[index], 'label': int(index/2500)}
+        return {'dataset': self.data[index], 'label': int(index/self.block_size)}
 
     def __len__(self):
         return len(self.data)
 
 
-def plot_context_means(network, dataset):
+def plot_context_means(network, dataset=OneDimDataset(4000, 200)):
     with to.no_grad():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
 
-        dataloader = to.utils.data.DataLoader(dataset, batch_size=2500, shuffle=False)
+        dataloader = to.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
 
         colours = ['b', 'r', 'y', 'g']
-        for batch, colour in zip(dataloader, colours):
+        for batch in dataloader:
             statistic_net_outputs = network.predict(batch["dataset"][:200])[0]
             context_means = statistic_net_outputs[0]
-            ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
+            ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colours[batch["label"][0].item()])
         plt.show()
 
 
 def main():
     optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
-
+    
+    test_func = lambda network: plot_context_means(network)
+    
     dataset = OneDimDataset()
     
     dataloader = to.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
 
     network = ns.NeuralStatistician(1, 3,
                                     LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork)
-    network.train(dataloader, 10, optimiser_func)
+    test_func(network)
+    network.train(dataloader, 1, optimiser_func, test_func)
 
     network.serialise("trained_model")
 

@@ -128,7 +128,7 @@ class NeuralStatistician(object):
         return mean + to.exp(0.5 * log_var) * std_errors
         
 
-    def train(self, dataloader, num_iterations, optimiser_func):
+    def train(self, dataloader, num_iterations, optimiser_func, test_func):
         """Train the Neural Statistician"""
 
         network_parameters = []
@@ -151,7 +151,7 @@ class NeuralStatistician(object):
                 optimiser.zero_grad()
                 loss.backward()
                 optimiser.step()
-
+            test_func(self)
 
     def serialise(self, path):
         with open(path, 'wb') as file:
