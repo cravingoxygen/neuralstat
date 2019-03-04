@@ -89,12 +89,12 @@ class NeuralStatistician(object):
                                  self.reconstruction_loss_history[-1])
 
         self.counter += 1
-        if self.counter % 625 == 0:
-            plt.plot(self.context_divergence_history, 'r')
-            plt.plot(self.latent_divergence_history, 'g')
-            plt.plot(self.reconstruction_loss_history, 'b')
-            plt.plot(self.loss_history, 'k')
-            plt.show()
+        # if self.counter % 625 == 0:
+        #     plt.plot(self.context_divergence_history, range(self.counter), 'r')
+        #     plt.plot(self.latent_divergence_history, range(self.counter), 'g')
+        #     plt.plot(self.reconstruction_loss_history, range(self.counter), 'b')
+        #     plt.plot(self.loss_history, range(self.counter), 'k')
+        #     plt.show()
 
 
         #Logically, it makes sense to keep the divergences separate up until here. 

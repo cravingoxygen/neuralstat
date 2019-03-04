@@ -172,19 +172,23 @@ class OneDimDataset(to.utils.data.Dataset):
         return len(self.data)
 
 
+counter = 0
 def plot_context_means(network, dataset=OneDimDataset(4000, 200)):
+    global counter
     with to.no_grad():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
 
-        dataloader = to.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+        dataloader = to.utils.data.DataLoader(dataset, batch_size=dataset.block_size, shuffle=False)
 
         colours = ['b', 'r', 'y', 'g']
-        for batch in dataloader:
+        for batch, colour in zip(dataloader, colours):
             statistic_net_outputs = network.predict(batch["dataset"][:200])[0]
             context_means = statistic_net_outputs[0]
-            ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colours[batch["label"][0].item()])
-        plt.show()
+            ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
+        plt.savefig("images/contexts_iteration_{0}".format(counter))
+        plt.close()
+        counter += 1
 
 
 def main():
@@ -199,7 +203,7 @@ def main():
     network = ns.NeuralStatistician(1, 3,
                                     LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork)
     test_func(network)
-    network.train(dataloader, 1, optimiser_func, test_func)
+    network.train(dataloader, 50, optimiser_func, test_func)
 
     network.serialise("trained_model")
 
