@@ -2,6 +2,8 @@ import torch as to
 import torch.utils.data
 import torch.nn.functional as F
 import numpy as np
+import os
+import datetime
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
@@ -186,7 +188,9 @@ def plot_context_means(network, dataset=OneDimDataset(4000, 200)):
             statistic_net_outputs = network.predict(batch["dataset"][:200])[0]
             context_means = statistic_net_outputs[0]
             ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
-        plt.savefig("images/contexts_iteration_{0}".format(counter))
+        path = "images/{}".format(datetime.datetime.now())
+        os.mkdir(path)
+        plt.savefig("{}/contexts_iteration_{}".format(path, counter))
         plt.close()
         counter += 1
 

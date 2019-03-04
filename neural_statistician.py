@@ -89,12 +89,13 @@ class NeuralStatistician(object):
                                  self.reconstruction_loss_history[-1])
 
         self.counter += 1
-        # if self.counter % 625 == 0:
-        #     plt.plot(self.context_divergence_history, range(self.counter), 'r')
-        #     plt.plot(self.latent_divergence_history, range(self.counter), 'g')
-        #     plt.plot(self.reconstruction_loss_history, range(self.counter), 'b')
-        #     plt.plot(self.loss_history, range(self.counter), 'k')
-        #     plt.show()
+        if self.counter % 625 == 0:
+            plt.figure()
+            plt.plot(range(self.counter), self.context_divergence_history, 'r')
+            plt.plot(range(self.counter), self.latent_divergence_history, 'g')
+            plt.plot(range(self.counter), self.reconstruction_loss_history, 'b')
+            plt.plot(range(self.counter), self.loss_history, 'k')
+            plt.show()
 
 
         #Logically, it makes sense to keep the divergences separate up until here. 
@@ -125,7 +126,8 @@ class NeuralStatistician(object):
         """Draw samples from the given normal distribution via the
         reparameterisation trick"""
         std_errors = to.randn(log_var.size())
-        return mean + to.exp(0.5 * log_var) * std_errors
+        # return mean + to.exp(0.5 * log_var) * std_errors
+        return mean + 1e-5 * std_errors
         
 
     def train(self, dataloader, num_iterations, optimiser_func, test_func):
