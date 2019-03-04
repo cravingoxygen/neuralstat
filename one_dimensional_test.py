@@ -174,7 +174,7 @@ class OneDimDataset(to.utils.data.Dataset):
         return len(self.data)
 
 
-def plot_context_means(network, dataset=OneDimDataset(4000, 200), iteration=0):
+def plot_context_means(network, timestamp, dataset=OneDimDataset(4000, 200), iteration=0, save_plot=True):
     with to.no_grad():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -187,12 +187,16 @@ def plot_context_means(network, dataset=OneDimDataset(4000, 200), iteration=0):
             statistic_net_outputs = network.predict(batch["dataset"][:max_points])[0]
             context_means = statistic_net_outputs[0]
             ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
-        path = "images/{}".format(datetime.datetime.now())
-        os.mkdir(path)
-        plt.savefig("{}/contexts_iteration_{}".format(path, counter))
-        plt.close()
+        if save_plot:
+            path = "results/{}".format(timestamp)
+            os.mkdir(path)
+            plt.savefig("{}/contexts_iteration_{}".format(path, iteration))
+            plt.close()
+        else:
+            plt.show()
         
-def generate_samples_like(network, single_dataset, num_samples, iteration=0):
+
+def generate_samples_like(network, single_dataset, num_samples, timestamp, iteration=0):
     with to.no_grad():
         fig = plt.figure()
         
@@ -200,31 +204,32 @@ def generate_samples_like(network, single_dataset, num_samples, iteration=0):
         
         samples = network.generate_like(reshaped_dataset, 1000)
         plt.hist(samples[0], bins=100)
-        plt.savefig("images/samples_{0}".format(iteration))
+        plt.savefig("results/{}/samples_{}".format(timestamp, iteration))
         plt.close()
         
-counter = 0
-def visualize_data(network, dataset):
-    global counter
-    plot_context_means(network, iteration=counter)
-    generate_samples_like(network, dataset[0]["dataset"], 1, iteration=counter)
-    counter += 1
+
+def visualize_data(network, dataset, iteration, timestamp):
+    plot_context_means(network, iteration=iteration, timestamp=timestamp)
+    generate_samples_like(network, dataset[0]["dataset"], 1, iteration=iteration, timestamp=timestamp)
+
 
 def main():
+    timestamp = datetime.datetime.now()
+
     optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
     
     dataset = OneDimDataset()
     
-    test_func = lambda network: visualize_data(network, dataset)
+    test_func = lambda network, iteration: visualize_data(network, dataset, iteration, timestamp)
     
     dataloader = to.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
 
     network = ns.NeuralStatistician(1, 3,
                                     LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork)
-    test_func(network)
+    test_func(network, 0)
     network.train(dataloader, 50, optimiser_func, test_func)
 
-    network.serialise("trained_model")
+    network.serialise("results/{}/trained_model".format(timestamp))
 
     return network
 

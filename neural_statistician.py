@@ -176,7 +176,7 @@ class NeuralStatistician(object):
                 optimiser.zero_grad()
                 loss.backward()
                 optimiser.step()
-            test_func(self)
+            test_func(self, iteration)
 
     def serialise(self, path):
         with open(path, 'wb') as file:
