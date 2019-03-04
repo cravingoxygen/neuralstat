@@ -172,9 +172,7 @@ class OneDimDataset(to.utils.data.Dataset):
         return len(self.data)
 
 
-counter = 0
-def plot_context_means(network, dataset=OneDimDataset(4000, 200)):
-    global counter
+def plot_context_means(network, dataset=OneDimDataset(4000, 200), iteration=0):
     with to.no_grad():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -182,21 +180,38 @@ def plot_context_means(network, dataset=OneDimDataset(4000, 200)):
         dataloader = to.utils.data.DataLoader(dataset, batch_size=dataset.block_size, shuffle=False)
 
         colours = ['b', 'r', 'y', 'g']
+        max_points = min(200, len(dataset[0]))
         for batch, colour in zip(dataloader, colours):
-            statistic_net_outputs = network.predict(batch["dataset"][:200])[0]
+            statistic_net_outputs = network.predict(batch["dataset"][:max_points])[0]
             context_means = statistic_net_outputs[0]
             ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
-        plt.savefig("images/contexts_iteration_{0}".format(counter))
+        plt.savefig("images/contexts_iteration_{0}".format(iteration))
         plt.close()
-        counter += 1
-
+        
+def generate_samples_like(network, single_dataset, num_samples, iteration=0):
+    with to.no_grad():
+        fig = plt.figure()
+        
+        reshaped_dataset = torch.tensor(single_dataset).view(1, -1, 1)
+        
+        samples = network.generate_like(reshaped_dataset, 1000)
+        plt.hist(samples[0], bins=100)
+        plt.savefig("images/samples_{0}".format(iteration))
+        plt.close()
+        
+counter = 0
+def visualize_data(network, dataset):
+    global counter
+    plot_context_means(network, iteration=counter)
+    generate_samples_like(network, dataset[0]["dataset"], 1, iteration=counter)
+    counter += 1
 
 def main():
     optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
     
-    test_func = lambda network: plot_context_means(network)
-    
     dataset = OneDimDataset()
+    
+    test_func = lambda network: visualize_data(network, dataset)
     
     dataloader = to.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
 
