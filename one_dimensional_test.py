@@ -188,22 +188,28 @@ def plot_context_means(network, dataset=OneDimDataset(4000, 200), iteration=0):
         plt.savefig("images/contexts_iteration_{0}".format(iteration))
         plt.close()
         
-def generate_samples_like(network, single_dataset, iteration=0):
+def generate_samples_like(network, datasets, iteration=0):
     with to.no_grad():
         fig = plt.figure()
         
-        reshaped_dataset = torch.tensor(single_dataset).view(1, -1, 1)
-        
-        samples = network.generate_like(reshaped_dataset)
-        plt.hist(samples, bins=100)
-        plt.savefig("images/samples_{0}".format(iteration))
-        plt.close()
+        test_datasets = [{"distribution": "exponential", "data":datasets[0]["dataset"]},
+            {"distribution": "normal", "data":datasets[datasets.block_size]["dataset"]}, 
+            {"distribution": "uniform", "data":datasets[datasets.block_size*2]["dataset"]}, 
+            {"distribution": "laplace", "data":datasets[datasets.block_size*3]["dataset"]},
+            ]
+            
+        for single_dataset in test_datasets:
+            reshaped_dataset = torch.tensor(single_dataset["data"]).view(1, -1, 1)
+            samples = network.generate_like(reshaped_dataset)
+            plt.hist(samples, bins=100)
+            plt.savefig("images/{0}_samples_{1}".format(single_dataset["distribution"], iteration))
+            plt.close()
         
 counter = 0
 def visualize_data(network, dataset):
     global counter
     plot_context_means(network, iteration=counter)
-    generate_samples_like(network, dataset[0]["dataset"], iteration=counter)
+    generate_samples_like(network, dataset, iteration=counter)
     counter += 1
 
 def main():
