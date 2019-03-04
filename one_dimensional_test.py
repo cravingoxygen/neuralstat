@@ -182,7 +182,7 @@ def plot_context_means(network, timestamp, dataset=OneDimDataset(4000, 200), ite
         dataloader = to.utils.data.DataLoader(dataset, batch_size=dataset.block_size, shuffle=False)
 
         colours = ['b', 'r', 'y', 'g']
-        max_points = min(200, len(dataset[0]))
+        max_points = min(200, len(dataset[0]["dataset"]))
         for batch, colour in zip(dataloader, colours):
             statistic_net_outputs = network.predict(batch["dataset"][:max_points])[0]
             context_means = statistic_net_outputs[0]
@@ -195,7 +195,6 @@ def plot_context_means(network, timestamp, dataset=OneDimDataset(4000, 200), ite
         else:
             plt.show()
         
-
 def generate_samples_like(network, single_dataset, num_samples, timestamp, iteration=0):
     with to.no_grad():
         fig = plt.figure()
@@ -210,7 +209,7 @@ def generate_samples_like(network, single_dataset, num_samples, timestamp, itera
 
 def visualize_data(network, dataset, iteration, timestamp):
     plot_context_means(network, iteration=iteration, timestamp=timestamp)
-    generate_samples_like(network, dataset[0]["dataset"], 1, iteration=iteration, timestamp=timestamp)
+    generate_samples_like(network, dataset[0]["dataset"], iteration=iteration, timestamp=timestamp)
 
 
 def main():
