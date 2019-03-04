@@ -180,7 +180,7 @@ def plot_context_means(network, dataset=OneDimDataset(4000, 200), iteration=0):
         dataloader = to.utils.data.DataLoader(dataset, batch_size=dataset.block_size, shuffle=False)
 
         colours = ['b', 'r', 'y', 'g']
-        max_points = min(200, len(dataset[0]))
+        max_points = min(200, len(dataset[0]["dataset"]))
         for batch, colour in zip(dataloader, colours):
             statistic_net_outputs = network.predict(batch["dataset"][:max_points])[0]
             context_means = statistic_net_outputs[0]
@@ -188,14 +188,14 @@ def plot_context_means(network, dataset=OneDimDataset(4000, 200), iteration=0):
         plt.savefig("images/contexts_iteration_{0}".format(iteration))
         plt.close()
         
-def generate_samples_like(network, single_dataset, num_samples, iteration=0):
+def generate_samples_like(network, single_dataset, iteration=0):
     with to.no_grad():
         fig = plt.figure()
         
         reshaped_dataset = torch.tensor(single_dataset).view(1, -1, 1)
         
-        samples = network.generate_like(reshaped_dataset, 1000)
-        plt.hist(samples[0], bins=100)
+        samples = network.generate_like(reshaped_dataset)
+        plt.hist(samples, bins=100)
         plt.savefig("images/samples_{0}".format(iteration))
         plt.close()
         
@@ -203,7 +203,7 @@ counter = 0
 def visualize_data(network, dataset):
     global counter
     plot_context_means(network, iteration=counter)
-    generate_samples_like(network, dataset[0]["dataset"], 1, iteration=counter)
+    generate_samples_like(network, dataset[0]["dataset"], iteration=counter)
     counter += 1
 
 def main():
