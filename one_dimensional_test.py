@@ -190,7 +190,7 @@ def plot_context_means(network, timestamp, device, dataset=OneDimDataset(4000, 2
         if save_plot:
             path = "results/{}".format(timestamp)
             try: os.mkdir(path)
-            except: print("(Save directory already exists; using existing directory)")
+            except FileExistsError: pass
             plt.savefig("{}/contexts_iteration_{}".format(path, iteration))
             plt.close()
         else:

@@ -2,6 +2,7 @@ import torch as to
 import torch.nn.functional as F
 import numpy as np
 import pickle
+from tqdm import tqdm, trange
 
 import matplotlib.pyplot as plt
 
@@ -133,14 +134,14 @@ class NeuralStatistician(to.nn.Module):
         # No-variance check
         # return mean + 1e-5 * std_errors
         return mean + to.exp(0.5 * log_var) * std_errors
-        
-        
+
+
     def generate_like(self, data):
         #Here, we're recieving a tuple with one tensor in it. The tensor is what we need to 
         # split out to get to the mean and log_var
         statistic_net_outputs = self.statistic_network(data)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
-        
+
         inference_net_outputs = [self.inference_networks[0](data, contexts)]
         latent_dec_outputs = [self.latent_decoders[0](contexts)]
         latent_z = [self.reparameterise_normal(*inference_net_outputs[0])]
@@ -153,7 +154,7 @@ class NeuralStatistician(to.nn.Module):
         samples = self.reparameterise_normal(*observation_dec_outputs).squeeze()
 
         return samples
-        
+
 
     def run_training(self, dataloader, num_iterations, optimiser_func, test_func, device="cpu"):
         """Train the Neural Statistician"""
@@ -168,13 +169,11 @@ class NeuralStatistician(to.nn.Module):
 
         optimiser = optimiser_func(network_parameters)
 
-        for iteration in range(num_iterations):
-            print("Commencing iteration {}/{}...".format(iteration+1, num_iterations))
-            for data_batch in dataloader:
+        for iteration in trange(num_iterations):
+            for data_batch in tqdm(dataloader, unit="bch"):
                 data = data_batch['dataset'].to(device)
                 distribution_parameters = self.predict(data)
                 loss = self.compute_loss(*distribution_parameters, data=data)
-                print("        Batch loss: {}".format(loss))
 
                 optimiser.zero_grad()
                 loss.backward()
