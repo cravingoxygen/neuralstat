@@ -29,10 +29,7 @@ class NeuralStatistician(object):
             network.apply(NeuralStatistician.init_weights)
 
         self.context_prior_mean = to.zeros(context_dimension, device=self.device)
-        # CHECK: Is it OK to restrict ourselvs to a diagonal covariance matrix for the prior?
         self.context_prior_cov = to.ones(context_dimension, device=self.device)
-        # self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
-        #     loc=self.context_prior_mean, covariance_matrix=to.diag(self.context_prior_cov))
 
         self.context_divergence_history = []
         self.latent_divergence_history = []
@@ -110,11 +107,12 @@ class NeuralStatistician(object):
     def predict(self, data):
         #Here, we're recieving a tuple with one tensor in it. The tensor is what we need to 
         # split out to get to the mean and log_var
+        import pdb; pdb.set_trace()
         statistic_net_outputs = self.statistic_network(data)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
 
-        inference_net_outputs = [self.inference_networks[0](data, contexts)]
-        latent_dec_outputs = [self.latent_decoders[0](contexts)]
+        inference_net_outputs = [self.inference_networks[0](data, contexts, None)]
+        latent_dec_outputs = [self.latent_decoders[0](contexts, None)]
         latent_z = [self.reparameterise_normal(*inference_net_outputs[0])]
         for inference_network, latent_decoder in zip(self.inference_networks[1:], self.latent_decoders[1:]):
             inference_net_outputs.append(inference_network(data, contexts, latent_z[-1]))
@@ -136,13 +134,15 @@ class NeuralStatistician(object):
         
         
     def generate_like(self, data):
+        pass
+        #TODO: Check this works for Spatial MNIST
         #Here, we're recieving a tuple with one tensor in it. The tensor is what we need to 
         # split out to get to the mean and log_var
         statistic_net_outputs = self.statistic_network(data)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
         
-        inference_net_outputs = [self.inference_networks[0](data, contexts)]
-        latent_dec_outputs = [self.latent_decoders[0](contexts)]
+        inference_net_outputs = [self.inference_networks[0](data, contexts, None)]
+        latent_dec_outputs = [self.latent_decoders[0](contexts, None)]
         latent_z = [self.reparameterise_normal(*inference_net_outputs[0])]
         for inference_network, latent_decoder in zip(self.inference_networks[1:], self.latent_decoders[1:]):
             inference_net_outputs.append(inference_network(data, contexts, latent_z[-1]))
