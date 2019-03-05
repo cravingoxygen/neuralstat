@@ -206,5 +206,5 @@ class NeuralStatistician(to.nn.Module):
     @staticmethod
     def init_weights(m):
         if type(m) == to.nn.Linear:
-            to.nn.init.xavier_normal(m.weight.data, gain=to.nn.init.calculate_gain('relu'))
-            to.nn.init.constant(m.bias.data, 0)
+            to.nn.init.xavier_normal_(m.weight.data, gain=to.nn.init.calculate_gain('relu'))
+            to.nn.init.constant_(m.bias.data, 0)
