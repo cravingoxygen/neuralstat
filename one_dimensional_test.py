@@ -196,21 +196,28 @@ def plot_context_means(network, timestamp, device, dataset=OneDimDataset(4000, 2
         else:
             plt.show()
         
-def generate_samples_like(network, single_dataset, timestamp, device, iteration=0):
+            
+def generate_samples_like(network, datasets, timestamp, device, iteration=0):
     with to.no_grad():
         fig = plt.figure()
         
-        reshaped_dataset = torch.tensor(single_dataset).to(device).view(1, -1, 1)
-        
-        samples = network.generate_like(reshaped_dataset).to("cpu") # Needed for numpy use below
-        plt.hist(samples, bins=100)
-        plt.savefig("results/{}/samples_{}".format(timestamp, iteration))
-        plt.close()
-        
+        test_datasets = [{"distribution": "exponential", "data":datasets[0]["dataset"]},
+            {"distribution": "normal", "data":datasets[datasets.block_size]["dataset"]}, 
+            {"distribution": "uniform", "data":datasets[datasets.block_size*2]["dataset"]}, 
+            {"distribution": "laplace", "data":datasets[datasets.block_size*3]["dataset"]},
+            ]
+            
+        for single_dataset in test_datasets:
+            reshaped_dataset = torch.tensor(single_dataset["data"]).to(device).view(1, -1, 1)
+            samples = network.generate_like(reshaped_dataset).to("cpu") # Needed for numpy use below
+            plt.hist(samples, bins=100)
+            plt.savefig("results/{}/{}_samples_{}".format(timestamp, single_dataset["distribution"], iteration))
+            plt.close()
+
 
 def visualize_data(network, dataset, iteration, timestamp, device):
     plot_context_means(network, iteration=iteration, device=device, timestamp=timestamp)
-    generate_samples_like(network, dataset[0]["dataset"], timestamp, device, iteration=iteration)
+    generate_samples_like(network, dataset, timestamp, device, iteration=iteration)
 
 
 def main():
