@@ -184,7 +184,7 @@ def main():
     network = ns.NeuralStatistician(num_stochastic_layers, context_dimension, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, device)
     
     test_func(network, 0)
-    network.train(train_dataloader, 50, optimiser_func, test_func, device)
+    network.run_training(train_dataloader, 50, optimiser_func, test_func, device)
 
     network.serialise("results/{}/trained_mnist_model".format(timestamp))
 
