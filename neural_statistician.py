@@ -9,14 +9,17 @@ import matplotlib.pyplot as plt
 class NeuralStatistician(object):
     """Tying-together class to hold references for a particular experiment"""
 
-    def __init__(self, num_stochastic_layers, context_dimension,
-                 LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork):
+    def __init__(self, num_stochastic_layers, context_dimension, 
+                 LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork,
+                 device="cpu"):
         super().__init__()
 
-        self.latent_decoders = [LatentDecoder() for _ in range(num_stochastic_layers)]
-        self.observation_decoder = ObservationDecoder()
-        self.statistic_network = StatisticNetwork()
-        self.inference_networks = [InferenceNetwork() for _ in range(num_stochastic_layers)]
+        self.device = device
+
+        self.latent_decoders = [LatentDecoder().to(self.device) for _ in range(num_stochastic_layers)]
+        self.observation_decoder = ObservationDecoder().to(self.device)
+        self.statistic_network = StatisticNetwork().to(self.device)
+        self.inference_networks = [InferenceNetwork().to(self.device) for _ in range(num_stochastic_layers)]
 
         # for network in self.latent_decoders:
         #     network.apply(NeuralStatistician.init_weights)
@@ -25,9 +28,9 @@ class NeuralStatistician(object):
         # for network in self.inference_networks:
         #     network.apply(NeuralStatistician.init_weights)
 
-        self.context_prior_mean = to.zeros(context_dimension)
+        self.context_prior_mean = to.zeros(context_dimension, device=self.device)
         # CHECK: Is it OK to restrict ourselvs to a diagonal covariance matrix for the prior?
-        self.context_prior_cov = to.ones(context_dimension)
+        self.context_prior_cov = to.ones(context_dimension, device=self.device)
         # self.context_prior = to.distributions.multivariate_normal.MultivariateNormal(
         #     loc=self.context_prior_mean, covariance_matrix=to.diag(self.context_prior_cov))
 
@@ -67,7 +70,7 @@ class NeuralStatistician(object):
         # Latent divergence
         # For computational efficiency, draw a single sample context from q(c, z | D, phi)
         # rather than computing the expectation properly.
-        latent_divergence = to.zeros(context_divergence.shape)
+        latent_divergence = to.zeros(context_divergence.shape, device=self.device)
         for ((inference_mu, inference_log_cov), (decoder_mu, decoder_log_cov)) in zip(inference_outputs, decoder_outputs):
             #Expand the decoder's outputs to be the same shape as the inference networks
             # i.e. batch_size x dataset_size x data_dimensionality (for mean and log_var)
@@ -89,13 +92,13 @@ class NeuralStatistician(object):
                                  self.reconstruction_loss_history[-1])
 
         self.counter += 1
-        if self.counter % 625 == 0:
-            plt.figure()
-            plt.plot(range(self.counter), self.context_divergence_history, 'r')
-            plt.plot(range(self.counter), self.latent_divergence_history, 'g')
-            plt.plot(range(self.counter), self.reconstruction_loss_history, 'b')
-            plt.plot(range(self.counter), self.loss_history, 'k')
-            plt.show()
+        # if self.counter % 625 == 0:
+        #     plt.figure()
+        #     plt.plot(range(self.counter), self.context_divergence_history, 'r')
+        #     plt.plot(range(self.counter), self.latent_divergence_history, 'g')
+        #     plt.plot(range(self.counter), self.reconstruction_loss_history, 'b')
+        #     plt.plot(range(self.counter), self.loss_history, 'k')
+        #     plt.show()
 
 
         #Logically, it makes sense to keep the divergences separate up until here. 
@@ -125,9 +128,10 @@ class NeuralStatistician(object):
     def reparameterise_normal(self, mean, log_var):
         """Draw samples from the given normal distribution via the
         reparameterisation trick"""
-        std_errors = to.randn(log_var.size())
-        # return mean + to.exp(0.5 * log_var) * std_errors
-        return mean + 1e-5 * std_errors
+        std_errors = to.randn(log_var.size(), device=self.device)
+        # No-variance check
+        # return mean + 1e-5 * std_errors
+        return mean + to.exp(0.5 * log_var) * std_errors
         
         
     def generate_like(self, data):
@@ -150,7 +154,7 @@ class NeuralStatistician(object):
         return samples
         
 
-    def train(self, dataloader, num_iterations, optimiser_func, test_func):
+    def train(self, dataloader, num_iterations, optimiser_func, test_func, device="cpu"):
         """Train the Neural Statistician"""
 
         network_parameters = []
@@ -166,8 +170,9 @@ class NeuralStatistician(object):
         for iteration in range(num_iterations):
             print("Commencing iteration {}/{}...".format(iteration+1, num_iterations))
             for data_batch in dataloader:
-                distribution_parameters = self.predict(data_batch['dataset'])
-                loss = self.compute_loss(*distribution_parameters, data=data_batch['dataset'])
+                data = data_batch['dataset'].to(device)
+                distribution_parameters = self.predict(data)
+                loss = self.compute_loss(*distribution_parameters, data=data)
                 print("        Batch loss: {}".format(loss))
 
                 optimiser.zero_grad()

@@ -92,7 +92,6 @@ class StatisticNetwork(to.nn.Module):
         self.post_pool_dense3 = to.nn.Linear(128, 2 * context_dimension)
 
     def forward(self, dataset):
-        
         dataset = self.embed_dense1(dataset)
         dataset = F.relu(dataset)
         dataset = self.embed_dense2(dataset)
@@ -174,7 +173,7 @@ class OneDimDataset(to.utils.data.Dataset):
         return len(self.data)
 
 
-def plot_context_means(network, timestamp, dataset=OneDimDataset(4000, 200), iteration=0, save_plot=True):
+def plot_context_means(network, timestamp, device, dataset=OneDimDataset(4000, 200), iteration=0, save_plot=True):
     with to.no_grad():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -184,49 +183,50 @@ def plot_context_means(network, timestamp, dataset=OneDimDataset(4000, 200), ite
         colours = ['b', 'r', 'y', 'g']
         max_points = min(200, len(dataset[0]["dataset"]))
         for batch, colour in zip(dataloader, colours):
-            statistic_net_outputs = network.predict(batch["dataset"][:max_points])[0]
-            context_means = statistic_net_outputs[0]
+            data = batch["dataset"].to(device)
+            statistic_net_outputs = network.predict(data[:max_points])[0]
+            context_means = statistic_net_outputs[0].to("cpu") # Needed for numpy use below
             ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
         if save_plot:
             path = "results/{}".format(timestamp)
-            os.mkdir(path)
+            try: os.mkdir(path)
+            except: print("(Save directory already exists; using existing directory)")
             plt.savefig("{}/contexts_iteration_{}".format(path, iteration))
             plt.close()
         else:
             plt.show()
         
-def generate_samples_like(network, single_dataset, timestamp, iteration=0):
+def generate_samples_like(network, single_dataset, timestamp, device, iteration=0):
     with to.no_grad():
         fig = plt.figure()
         
-        reshaped_dataset = torch.tensor(single_dataset).view(1, -1, 1)
+        reshaped_dataset = torch.tensor(single_dataset).to(device).view(1, -1, 1)
         
-        samples = network.generate_like(reshaped_dataset)
+        samples = network.generate_like(reshaped_dataset).to("cpu") # Needed for numpy use below
         plt.hist(samples, bins=100)
         plt.savefig("results/{}/samples_{}".format(timestamp, iteration))
         plt.close()
         
 
-def visualize_data(network, dataset, iteration, timestamp):
-    plot_context_means(network, iteration=iteration, timestamp=timestamp)
-    generate_samples_like(network, dataset[0]["dataset"], iteration=iteration, timestamp=timestamp)
+def visualize_data(network, dataset, iteration, timestamp, device):
+    plot_context_means(network, iteration=iteration, device=device, timestamp=timestamp)
+    generate_samples_like(network, dataset[0]["dataset"], timestamp, device, iteration=iteration)
 
 
 def main():
+    device = to.device("cuda")
     timestamp = datetime.datetime.now()
 
     optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
-    
     dataset = OneDimDataset()
-    
-    test_func = lambda network, iteration: visualize_data(network, dataset, iteration, timestamp)
-    
+    test_func = lambda network, iteration: visualize_data(network, dataset, iteration, timestamp, device)
     dataloader = to.utils.data.DataLoader(dataset, batch_size=16, shuffle=True)
 
-    network = ns.NeuralStatistician(1, 3,
-                                    LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork)
+    network = ns.NeuralStatistician(1, 3, 
+                                    LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork,
+                                    device)
     test_func(network, 0)
-    network.train(dataloader, 50, optimiser_func, test_func)
+    network.train(dataloader, 50, optimiser_func, test_func, device)
 
     network.serialise("results/{}/trained_model".format(timestamp))
 
