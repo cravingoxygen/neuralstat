@@ -7,6 +7,8 @@ import datetime
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import matplotlib.colors
+import matplotlib.cm as cmx
 
 import neural_statistician as ns
 
@@ -151,29 +153,33 @@ class OneDimDataset(to.utils.data.Dataset):
     def __init__(self, number_of_datasets=10000, number_of_samples=200):
         super(OneDimDataset, self).__init__()
         data = np.zeros((number_of_datasets, number_of_samples))
-        means = np.random.uniform(-1, 1, number_of_datasets)
-        variances = np.random.uniform(0.5, 2, number_of_datasets)
+        self.means = np.random.uniform(-1, 1, number_of_datasets)
+        self.variances = np.random.uniform(0.5, 2, number_of_datasets)
         
         block_size = int(number_of_datasets/4)
         
-        data[0:block_size] = np.random.exponential(np.sqrt(variances[0:block_size]), (number_of_samples, block_size)).T
-        data[block_size:block_size*2] = np.random.normal(means[block_size:block_size*2], np.sqrt(variances[block_size:block_size*2]), (number_of_samples, block_size)).T
-        data[block_size*2:block_size*3] = np.random.uniform(means[block_size*2:block_size*3] - np.sqrt(3*variances[block_size*2:block_size*3]),
-                                            means[block_size*2:block_size*3] + np.sqrt(3*variances[block_size*2:block_size*3]), (number_of_samples, block_size)).T
-        data[block_size*3:block_size*4] = np.random.laplace(means[block_size*3:block_size*4], np.sqrt(variances[block_size*3:block_size*4]/2), (number_of_samples, block_size)).T
+        data[0:block_size] = np.random.exponential(np.sqrt(self.variances[0:block_size]), (number_of_samples, block_size)).T
+        data[block_size:block_size*2] = np.random.normal(self.means[block_size:block_size*2], np.sqrt(self.variances[block_size:block_size*2]), (number_of_samples, block_size)).T
+        data[block_size*2:block_size*3] = np.random.uniform(self.means[block_size*2:block_size*3] - np.sqrt(3*self.variances[block_size*2:block_size*3]),
+                                            self.means[block_size*2:block_size*3] + np.sqrt(3*self.variances[block_size*2:block_size*3]), (number_of_samples, block_size)).T
+        data[block_size*3:block_size*4] = np.random.laplace(self.means[block_size*3:block_size*4], np.sqrt(self.variances[block_size*3:block_size*4]/2), (number_of_samples, block_size)).T
 
         data = [to.as_tensor(ds.reshape(number_of_samples,1), dtype=to.float) for ds in data]
         self.data = data
         self.block_size = block_size
         
     def __getitem__(self, index):
-        return {'dataset': self.data[index], 'label': int(index/self.block_size)}
+        return {'dataset': self.data[index],
+                'label': int(index/self.block_size),
+                'mean': self.means[index],
+                'variance': self.variances[index]}
 
     def __len__(self):
         return len(self.data)
 
 
-def plot_context_means(network, timestamp, device, dataset=OneDimDataset(4000, 200), iteration=0, save_plot=True):
+def plot_contexts_by_distribution(network, timestamp, device, dataset=OneDimDataset(4000, 200), iteration=0, save_plot=True):
+    """Plot the context means in context space, coloured by the distribution of the original dataset."""
     with to.no_grad():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -187,6 +193,7 @@ def plot_context_means(network, timestamp, device, dataset=OneDimDataset(4000, 2
             statistic_net_outputs = network.predict(data[:max_points])[0]
             context_means = statistic_net_outputs[0].to("cpu") # Needed for numpy use below
             ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
+
         if save_plot:
             path = "results/{}".format(timestamp)
             try: os.mkdir(path)
@@ -195,6 +202,27 @@ def plot_context_means(network, timestamp, device, dataset=OneDimDataset(4000, 2
             plt.close()
         else:
             plt.show()
+
+
+def plot_contexts_by_value(network, device, value, dataset=OneDimDataset(4000, 200)):
+    """Plot the context means in context space, coloured by the mean of the original dataset."""
+    with to.no_grad():
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        dataloader = to.utils.data.DataLoader(dataset, batch_size=len(dataset))
+
+        for batch in dataloader:
+            data = batch["dataset"].to(device)
+            context_means = network.predict(data)[0][0].to("cpu") # Needed for numpy use below
+            dataset_values = batch[value]
+            colours = matplotlib.colors.Normalize(vmin=to.min(dataset_values), vmax=to.max(dataset_values))
+            scalar_map = cmx.ScalarMappable(norm=colours, cmap='viridis')
+            points = ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=scalar_map.to_rgba(dataset_values))
+            
+        scalar_map.set_array(dataset_values)
+        plt.colorbar(scalar_map)
+        plt.show()
         
             
 def generate_samples_like(network, datasets, timestamp, device, iteration=0):
@@ -216,7 +244,7 @@ def generate_samples_like(network, datasets, timestamp, device, iteration=0):
 
 
 def visualize_data(network, dataset, iteration, timestamp, device):
-    plot_context_means(network, iteration=iteration, device=device, timestamp=timestamp)
+    plot_contexts_by_distribution(network, iteration=iteration, device=device, timestamp=timestamp)
     generate_samples_like(network, dataset, timestamp, device, iteration=iteration)
 
 
