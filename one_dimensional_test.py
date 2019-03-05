@@ -27,7 +27,7 @@ class LatentDecoder(to.nn.Module):
         # Output is dim(z) for the mean and dim(z) for the variance
         self.final = to.nn.Linear(128, 2 * 32)
 
-    def forward(self, c):
+    def forward(self, c, z):
         w = self.dense1(c)
         w = F.relu(w)
 
@@ -127,7 +127,7 @@ class InferenceNetwork(to.nn.Module):
         # distribution defining z
         self.final = to.nn.Linear(128, 2 * 32)
 
-    def forward(self, x, c):
+    def forward(self, x, c, z):
         """Computes x from a concatenation (w) of latent variables z and context c."""
         # Augment every data point in x with the context vector for that dataset
         # CHECK: Is this correct?
