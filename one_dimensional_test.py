@@ -208,7 +208,7 @@ def generate_samples_like(network, datasets, timestamp, device, iteration=0):
             ]
             
         for single_dataset in test_datasets:
-            reshaped_dataset = torch.tensor(single_dataset["data"]).to(device).view(1, -1, 1)
+            reshaped_dataset = single_dataset["data"].to(device).view(1, -1, 1)
             samples = network.generate_like(reshaped_dataset).to("cpu") # Needed for numpy use below
             plt.hist(samples, bins=100)
             plt.savefig("results/{}/{}_samples_{}".format(timestamp, single_dataset["distribution"], iteration))

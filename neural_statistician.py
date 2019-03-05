@@ -6,7 +6,7 @@ import pickle
 import matplotlib.pyplot as plt
 
 
-class NeuralStatistician(object):
+class NeuralStatistician(to.nn.Module):
     """Tying-together class to hold references for a particular experiment"""
 
     def __init__(self, num_stochastic_layers, context_dimension, 
@@ -16,10 +16,10 @@ class NeuralStatistician(object):
 
         self.device = device
 
-        self.latent_decoders = [LatentDecoder().to(self.device) for _ in range(num_stochastic_layers)]
+        self.latent_decoders = to.nn.ModuleList([LatentDecoder().to(self.device) for _ in range(num_stochastic_layers)])
         self.observation_decoder = ObservationDecoder().to(self.device)
         self.statistic_network = StatisticNetwork().to(self.device)
-        self.inference_networks = [InferenceNetwork().to(self.device) for _ in range(num_stochastic_layers)]
+        self.inference_networks = to.nn.ModuleList([InferenceNetwork().to(self.device) for _ in range(num_stochastic_layers)])
 
         for network in self.latent_decoders:
             network.apply(NeuralStatistician.init_weights)
@@ -155,7 +155,7 @@ class NeuralStatistician(object):
         return samples
         
 
-    def train(self, dataloader, num_iterations, optimiser_func, test_func, device="cpu"):
+    def run_training(self, dataloader, num_iterations, optimiser_func, test_func, device="cpu"):
         """Train the Neural Statistician"""
 
         network_parameters = []
@@ -181,15 +181,26 @@ class NeuralStatistician(object):
                 optimiser.step()
             test_func(self, iteration)
 
+
     def serialise(self, path):
-        with open(path, 'wb') as file:
-            pickle.dump(self, file)
+        save_dict = self.state_dict().copy()
+        save_dict['context_divergence_history'] = self.context_divergence_history
+        save_dict['latent_divergence_history'] = self.latent_divergence_history
+        save_dict['reconstruction_loss_history'] = self.reconstruction_loss_history
+        save_dict['loss_history'] = self.loss_history
+
+        to.save(save_dict, path)
 
 
-    @staticmethod
-    def deserialise(path):
-        with open(path, 'rb') as file:
-            pickle.load(file)
+    def deserialise(self, path):
+        save_dict = to.load(path)
+        self.context_divergence_history = save_dict.pop('context_divergence_history')
+        self.latent_divergence_history = save_dict.pop('latent_divergence_history')
+        self.reconstruction_loss_history = save_dict.pop('reconstruction_loss_history')
+        self.loss_history = save_dict.pop('loss_history')
+
+        self.load_state_dict(save_dict)
+        self.eval()
 
 
     @staticmethod
