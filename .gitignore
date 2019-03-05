@@ -105,3 +105,4 @@ venv.bak/
 
 ReferenceCode/*
 trained_*
+results/*
