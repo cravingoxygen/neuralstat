@@ -21,12 +21,12 @@ class NeuralStatistician(object):
         self.statistic_network = StatisticNetwork().to(self.device)
         self.inference_networks = [InferenceNetwork().to(self.device) for _ in range(num_stochastic_layers)]
 
-        # for network in self.latent_decoders:
-        #     network.apply(NeuralStatistician.init_weights)
-        # self.observation_decoder.apply(NeuralStatistician.init_weights)
-        # self.statistic_network.apply(NeuralStatistician.init_weights)
-        # for network in self.inference_networks:
-        #     network.apply(NeuralStatistician.init_weights)
+        for network in self.latent_decoders:
+            network.apply(NeuralStatistician.init_weights)
+        self.observation_decoder.apply(NeuralStatistician.init_weights)
+        self.statistic_network.apply(NeuralStatistician.init_weights)
+        for network in self.inference_networks:
+            network.apply(NeuralStatistician.init_weights)
 
         self.context_prior_mean = to.zeros(context_dimension, device=self.device)
         # CHECK: Is it OK to restrict ourselvs to a diagonal covariance matrix for the prior?
@@ -54,6 +54,7 @@ class NeuralStatistician(object):
             to.sum(to.log(diag_cov_1), dim=-1) - to.sum(to.log(diag_cov_0), dim=-1)
         ).sum(dim=1)
 
+    
     def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data):
         """Compute the full model loss function"""
         batch_size = data.shape[0]
@@ -193,5 +194,6 @@ class NeuralStatistician(object):
 
     @staticmethod
     def init_weights(m):
-        to.nn.init.xavier_normal(m.weight.data, gain=to.nn.init.calculate_gain('relu'))
-        to.nn.init.constant(m.bias.data, 0)
+        if type(m) == to.nn.Linear:
+            to.nn.init.xavier_normal(m.weight.data, gain=to.nn.init.calculate_gain('relu'))
+            to.nn.init.constant(m.bias.data, 0)
