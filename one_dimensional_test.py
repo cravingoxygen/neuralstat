@@ -233,7 +233,7 @@ def main():
                                     LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork,
                                     device)
     test_func(network, 0)
-    network.train(dataloader, 50, optimiser_func, test_func, device)
+    network.run_training(dataloader, 50, optimiser_func, test_func, device)
 
     network.serialise("results/{}/trained_model".format(timestamp))
 
