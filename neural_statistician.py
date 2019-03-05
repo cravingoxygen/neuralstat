@@ -2,11 +2,12 @@ import torch as to
 import torch.nn.functional as F
 import numpy as np
 import pickle
+from tqdm import tqdm, trange
 
 import matplotlib.pyplot as plt
 
 
-class NeuralStatistician(object):
+class NeuralStatistician(to.nn.Module):
     """Tying-together class to hold references for a particular experiment"""
 
     def __init__(self, num_stochastic_layers, context_dimension, 
@@ -16,10 +17,10 @@ class NeuralStatistician(object):
 
         self.device = device
 
-        self.latent_decoders = [LatentDecoder().to(self.device) for _ in range(num_stochastic_layers)]
+        self.latent_decoders = to.nn.ModuleList([LatentDecoder().to(self.device) for _ in range(num_stochastic_layers)])
         self.observation_decoder = ObservationDecoder().to(self.device)
         self.statistic_network = StatisticNetwork().to(self.device)
-        self.inference_networks = [InferenceNetwork().to(self.device) for _ in range(num_stochastic_layers)]
+        self.inference_networks = to.nn.ModuleList([InferenceNetwork().to(self.device) for _ in range(num_stochastic_layers)])
 
         for network in self.latent_decoders:
             network.apply(NeuralStatistician.init_weights)
@@ -131,8 +132,8 @@ class NeuralStatistician(object):
         # No-variance check
         # return mean + 1e-5 * std_errors
         return mean + to.exp(0.5 * log_var) * std_errors
-        
-        
+
+
     def generate_like(self, data):
         pass
         #TODO: Check this works for Spatial MNIST
@@ -153,9 +154,9 @@ class NeuralStatistician(object):
         samples = self.reparameterise_normal(*observation_dec_outputs).squeeze()
 
         return samples
-        
 
-    def train(self, dataloader, num_iterations, optimiser_func, test_func, device="cpu"):
+
+    def run_training(self, dataloader, num_iterations, optimiser_func, test_func, device="cpu"):
         """Train the Neural Statistician"""
 
         network_parameters = []
@@ -168,32 +169,41 @@ class NeuralStatistician(object):
 
         optimiser = optimiser_func(network_parameters)
 
-        for iteration in range(num_iterations):
-            print("Commencing iteration {}/{}...".format(iteration+1, num_iterations))
-            for data_batch in dataloader:
+        for iteration in trange(num_iterations):
+            for data_batch in tqdm(dataloader, unit="bch"):
                 data = data_batch['dataset'].to(device)
                 distribution_parameters = self.predict(data)
                 loss = self.compute_loss(*distribution_parameters, data=data)
-                print("        Batch loss: {}".format(loss))
 
                 optimiser.zero_grad()
                 loss.backward()
                 optimiser.step()
             test_func(self, iteration)
 
+
     def serialise(self, path):
-        with open(path, 'wb') as file:
-            pickle.dump(self, file)
+        save_dict = self.state_dict().copy()
+        save_dict['context_divergence_history'] = self.context_divergence_history
+        save_dict['latent_divergence_history'] = self.latent_divergence_history
+        save_dict['reconstruction_loss_history'] = self.reconstruction_loss_history
+        save_dict['loss_history'] = self.loss_history
+
+        to.save(save_dict, path)
 
 
-    @staticmethod
-    def deserialise(path):
-        with open(path, 'rb') as file:
-            pickle.load(file)
+    def deserialise(self, path):
+        save_dict = to.load(path)
+        self.context_divergence_history = save_dict.pop('context_divergence_history')
+        self.latent_divergence_history = save_dict.pop('latent_divergence_history')
+        self.reconstruction_loss_history = save_dict.pop('reconstruction_loss_history')
+        self.loss_history = save_dict.pop('loss_history')
+
+        self.load_state_dict(save_dict)
+        self.eval()
 
 
     @staticmethod
     def init_weights(m):
         if type(m) == to.nn.Linear:
-            to.nn.init.xavier_normal(m.weight.data, gain=to.nn.init.calculate_gain('relu'))
-            to.nn.init.constant(m.bias.data, 0)
+            to.nn.init.xavier_normal_(m.weight.data, gain=to.nn.init.calculate_gain('relu'))
+            to.nn.init.constant_(m.bias.data, 0)

@@ -190,7 +190,7 @@ def plot_context_means(network, timestamp, device, dataset=OneDimDataset(4000, 2
         if save_plot:
             path = "results/{}".format(timestamp)
             try: os.mkdir(path)
-            except: print("(Save directory already exists; using existing directory)")
+            except FileExistsError: pass
             plt.savefig("{}/contexts_iteration_{}".format(path, iteration))
             plt.close()
         else:
@@ -208,7 +208,7 @@ def generate_samples_like(network, datasets, timestamp, device, iteration=0):
             ]
             
         for single_dataset in test_datasets:
-            reshaped_dataset = torch.tensor(single_dataset["data"]).to(device).view(1, -1, 1)
+            reshaped_dataset = single_dataset["data"].to(device).view(1, -1, 1)
             samples = network.generate_like(reshaped_dataset).to("cpu") # Needed for numpy use below
             plt.hist(samples, bins=100)
             plt.savefig("results/{}/{}_samples_{}".format(timestamp, single_dataset["distribution"], iteration))
@@ -233,7 +233,7 @@ def main():
                                     LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork,
                                     device)
     test_func(network, 0)
-    network.train(dataloader, 50, optimiser_func, test_func, device)
+    network.run_training(dataloader, 50, optimiser_func, test_func, device)
 
     network.serialise("results/{}/trained_model".format(timestamp))
 
