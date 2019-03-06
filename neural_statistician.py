@@ -170,14 +170,16 @@ class NeuralStatistician(to.nn.Module):
         optimiser = optimiser_func(network_parameters)
 
         for iteration in trange(num_iterations):
-            for data_batch in tqdm(dataloader, unit="bch"):
-                data = data_batch['dataset'].to(device)
-                distribution_parameters = self.predict(data)
-                loss = self.compute_loss(*distribution_parameters, data=data)
-
-                optimiser.zero_grad()
-                loss.backward()
-                optimiser.step()
+            with tqdm(dataloader, unit="bch") as progress:
+                for data_batch in progress:
+                    data = data_batch['dataset'].to(device)
+                    distribution_parameters = self.predict(data)
+                    loss = self.compute_loss(*distribution_parameters, data=data)
+                    progress.set_postfix(loss=loss.item())
+                    
+                    optimiser.zero_grad()
+                    loss.backward()
+                    optimiser.step()
             test_func(self, iteration)
 
 
