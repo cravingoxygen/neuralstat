@@ -135,8 +135,6 @@ class NeuralStatistician(to.nn.Module):
 
 
     def generate_like(self, data):
-        pass
-        #TODO: Check this works for Spatial MNIST
         #Here, we're recieving a tuple with one tensor in it. The tensor is what we need to 
         # split out to get to the mean and log_var
         statistic_net_outputs = self.statistic_network(data)
@@ -148,7 +146,7 @@ class NeuralStatistician(to.nn.Module):
         for inference_network, latent_decoder in zip(self.inference_networks[1:], self.latent_decoders[1:]):
             inference_net_outputs.append(inference_network(data, contexts, latent_z[-1]))
             latent_dec_outputs.append(latent_decoder(contexts, latent_z[-1]))
-            latent_z.append(*self.reparameterise_normal(inference_net_outputs[-1]))
+            latent_z.append(self.reparameterise_normal(*inference_net_outputs[-1]))
 
         observation_dec_outputs = self.observation_decoder(to.cat(latent_z, dim=2), contexts)
         samples = self.reparameterise_normal(*observation_dec_outputs).squeeze()
