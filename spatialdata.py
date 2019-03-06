@@ -31,7 +31,9 @@ class SpatialMNISTDataset(data.Dataset):
         self._n = len(self._spatial)
 
     def __getitem__(self, item):
-        return {"dataset": self._spatial[item].reshape(50*2), "label": self._labels[item]}
+        # Original code has .reshape(50*2) on the data points
+        # We need the original format of two-dimensional data, so removed
+        return {"dataset": self._spatial[item], "label": self._labels[item]}
 
     def __len__(self):
         return self._n

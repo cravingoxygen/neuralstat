@@ -74,14 +74,15 @@ class NeuralStatistician(to.nn.Module):
             #Expand the decoder's outputs to be the same shape as the inference networks
             # i.e. batch_size x dataset_size x data_dimensionality (for mean and log_var)
             latent_divergence += self.normal_kl_divergence(inference_mu, to.exp(inference_log_cov),
-                                                           decoder_mu.unsqueeze(1).expand_as(inference_mu), to.exp(decoder_log_cov).unsqueeze(1).expand_as(inference_log_cov))
+                                                           decoder_mu.expand_as(inference_mu), to.exp(decoder_log_cov).expand_as(inference_log_cov))
 
         # Reconstruction loss
         observation_decoder_mean, observation_decoder_log_cov = observation_decoder_outputs
         
         #CHECK: Check reconstruction loss accumulation logic
+        #CHECK: For 2D decoder outputs, can we just sum over dimensions?
         reconstruction_loss = to.distributions.normal.Normal(
-            loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=1).squeeze(dim=1)
+            loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=2).sum(dim=1)
 
         self.context_divergence_history.append(context_divergence.sum().item())
         self.latent_divergence_history.append(latent_divergence.sum().item())
@@ -108,7 +109,6 @@ class NeuralStatistician(to.nn.Module):
     def predict(self, data):
         #Here, we're recieving a tuple with one tensor in it. The tensor is what we need to 
         # split out to get to the mean and log_var
-        import pdb; pdb.set_trace()
         statistic_net_outputs = self.statistic_network(data)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
 
@@ -118,7 +118,7 @@ class NeuralStatistician(to.nn.Module):
         for inference_network, latent_decoder in zip(self.inference_networks[1:], self.latent_decoders[1:]):
             inference_net_outputs.append(inference_network(data, contexts, latent_z[-1]))
             latent_dec_outputs.append(latent_decoder(contexts, latent_z[-1]))
-            latent_z.append(*self.reparameterise_normal(inference_net_outputs[-1]))
+            latent_z.append(self.reparameterise_normal(*inference_net_outputs[-1]))
 
         observation_dec_outputs = self.observation_decoder(to.cat(latent_z, dim=2), contexts)
 

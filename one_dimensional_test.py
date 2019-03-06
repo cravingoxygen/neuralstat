@@ -28,6 +28,10 @@ class LatentDecoder(to.nn.Module):
         self.final = to.nn.Linear(128, 2 * 32)
 
     def forward(self, c, z):
+        # Only one z is used in this test, so ignore z
+        # Expand c, as in general we need 3D tensors here
+        c = c.unsqueeze(dim=1)
+
         w = self.dense1(c)
         w = F.relu(w)
 
@@ -39,7 +43,7 @@ class LatentDecoder(to.nn.Module):
 
         w = self.final(w)
         # We've now computed mu_z and log var_c
-        return w[:,:32], w[:,32:]
+        return w[:, :, :32], w[:, :, 32:]
 
 
 ### p(x | z_(1:L), c) parameterised by theta

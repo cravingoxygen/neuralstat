@@ -13,8 +13,10 @@ import neural_statistician as ns
 
 data_dir = "spatial_data/spatial"
 
+device = to.device("cuda")
 context_dimension = 64
 dense_layer_size = 256
+x_dimension = 2
 z_dimension = 2
 num_stochastic_layers = 3
 
@@ -24,7 +26,8 @@ class LatentDecoder(to.nn.Module):
         super().__init__()
 
         # Input is dim(z_i) + dim(c)
-        self.dense1 = to.nn.Linear(2*z_dimension + context_dimension, dense_layer_size)
+        # CHECK: We're just passing a z in here, right? Not a distribution?
+        self.dense1 = to.nn.Linear(z_dimension + context_dimension, dense_layer_size)
         self.dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
         self.dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
 
@@ -33,9 +36,11 @@ class LatentDecoder(to.nn.Module):
 
     def forward(self, c, z):
         if z is None:
-            z = to.zeros(2*z_dimension)
+            z = to.zeros(c.shape[0], 1, z_dimension, device=device)
+        c = c.unsqueeze(dim=1).expand(-1, z.shape[1], -1)
+
         #Concatenate for each batch
-        w = to.cat((c, z), dim=1)
+        w = to.cat((c, z), dim=2)
         w = self.dense1(w)
         w = F.relu(w)
 
@@ -47,7 +52,7 @@ class LatentDecoder(to.nn.Module):
 
         w = self.final(w)
         # We've now computed mu_z and log var_c
-        return w[:,:z_dimension], w[:,z_dimension:]
+        return w[:, :, :z_dimension], w[:, :, z_dimension:]
 
 
 ### p(x | z_(1:L), c) parameterised by theta
@@ -56,13 +61,14 @@ class ObservationDecoder(to.nn.Module):
         super().__init__()
 
         # Input is dim(z)* num_z_layers + dim(c)
-        self.dense1 = to.nn.Linear(2*z_dimension*num_stochastic_layers + context_dimension, dense_layer_size)
+        self.dense1 = to.nn.Linear(z_dimension*num_stochastic_layers + context_dimension, dense_layer_size)
         self.dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
         self.dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
 
         # Output is dim(x) for the mean and dim(x) for the variance
+        # CHECK: I don't think we do?
         #We flatten x into 1-D
-        self.final = to.nn.Linear(dense_layer_size, 2 * 1)
+        self.final = to.nn.Linear(dense_layer_size, 2 * x_dimension)
 
     def forward(self, z, c):
         """Computes x from a concatenation (w) of latent variables z and context c."""
@@ -83,7 +89,7 @@ class ObservationDecoder(to.nn.Module):
         w = self.final(w)
         
         # We've now computed mu_x and log var_x
-        return w[:, :, 0].unsqueeze(2), w[:, :, 1].unsqueeze(2)
+        return w[:, :, x_dimension:], w[:, :, :x_dimension]
 
 
 ### q(c | D) parameterised by phi
@@ -92,7 +98,7 @@ class StatisticNetwork(to.nn.Module):
         super().__init__()
 
         # Input is whole dataset; a batch of dim(x)
-        self.embed_dense1 = to.nn.Linear(1, dense_layer_size)
+        self.embed_dense1 = to.nn.Linear(x_dimension, dense_layer_size)
         self.embed_dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
         self.embed_dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
 
@@ -127,7 +133,8 @@ class InferenceNetwork(to.nn.Module):
         super().__init__()
 
         # Input is dim(z_prev) + dim(c) + dim(x);
-        self.dense1 = to.nn.Linear(2*z_dimension + context_dimension + 1, dense_layer_size)
+        # CHECK: We're just taking a value of z_prev here, rather than a mean and variance, right?
+        self.dense1 = to.nn.Linear(z_dimension + context_dimension + x_dimension, dense_layer_size)
         self.dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
         self.dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
 
@@ -138,7 +145,7 @@ class InferenceNetwork(to.nn.Module):
     def forward(self, x, c, z):
         """Computes x from a concatenation (w) of latent variables z_prev and context c."""
         if z is None:
-            z = to.zeros(2*z_dimension)
+            z = to.zeros(*x.shape[0:2], z_dimension, device=device)
         
         # Augment every data point in x with the context vector for that dataset
         w = to.cat((c.unsqueeze(dim=1).expand(-1, x.shape[1], -1),
@@ -169,7 +176,6 @@ def visualize_data(network, dataset, iteration, timestamp, device):
 
 
 def main():
-    device = to.device("cuda")
     timestamp = datetime.datetime.now()
 
     optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
