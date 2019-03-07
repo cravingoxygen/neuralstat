@@ -64,7 +64,6 @@ class NeuralStatistician(to.nn.Module):
         # dimension, as if there were exactly 1 data point
         context_divergence = self.normal_kl_divergence(context_mean.unsqueeze(dim=1), to.exp(context_log_cov).unsqueeze(dim=1),
                                                        self.context_prior_mean.expand_as(context_mean.unsqueeze(dim=1)), self.context_prior_cov.expand_as(context_log_cov.unsqueeze(dim=1)))
-        # context_divergence *= sample_size
 
         # Latent divergence
         # For computational efficiency, draw a single sample context from q(c, z | D, phi)
@@ -79,8 +78,6 @@ class NeuralStatistician(to.nn.Module):
         # Reconstruction loss
         observation_decoder_mean, observation_decoder_log_cov = observation_decoder_outputs
         
-        #CHECK: Check reconstruction loss accumulation logic
-        #CHECK: For 2D decoder outputs, can we just sum over dimensions?
         reconstruction_loss = to.distributions.normal.Normal(
             loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=2).sum(dim=1)
 

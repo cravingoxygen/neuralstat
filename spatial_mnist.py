@@ -26,10 +26,12 @@ class LatentDecoder(to.nn.Module):
         super().__init__()
 
         # Input is dim(z_i) + dim(c)
-        # CHECK: We're just passing a z in here, right? Not a distribution?
         self.dense1 = to.nn.Linear(z_dimension + context_dimension, dense_layer_size)
+        self.batchnorm1 = to.nn.BatchNorm1d(dense_layer_size)
         self.dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm2 = to.nn.BatchNorm1d(dense_layer_size)
         self.dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm3 = to.nn.BatchNorm1d(dense_layer_size)
 
         # Output is dim(z) for the mean and dim(z) for the variance
         self.final = to.nn.Linear(dense_layer_size, 2 * z_dimension)
@@ -42,12 +44,15 @@ class LatentDecoder(to.nn.Module):
         #Concatenate for each batch
         w = to.cat((c, z), dim=2)
         w = self.dense1(w)
+        w = apply_batch_norm(self.batchnorm1, w)
         w = F.relu(w)
 
         w = self.dense2(w)
+        w = apply_batch_norm(self.batchnorm2, w)
         w = F.relu(w)
         
         w = self.dense3(w)
+        w = apply_batch_norm(self.batchnorm3, w)
         w = F.relu(w)
 
         w = self.final(w)
@@ -62,12 +67,13 @@ class ObservationDecoder(to.nn.Module):
 
         # Input is dim(z)* num_z_layers + dim(c)
         self.dense1 = to.nn.Linear(z_dimension*num_stochastic_layers + context_dimension, dense_layer_size)
+        self.batchnorm1 = to.nn.BatchNorm1d(dense_layer_size)
         self.dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm2 = to.nn.BatchNorm1d(dense_layer_size)
         self.dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm3 = to.nn.BatchNorm1d(dense_layer_size)
 
         # Output is dim(x) for the mean and dim(x) for the variance
-        # CHECK: I don't think we do?
-        #We flatten x into 1-D
         self.final = to.nn.Linear(dense_layer_size, 2 * x_dimension)
 
     def forward(self, z, c):
@@ -78,12 +84,15 @@ class ObservationDecoder(to.nn.Module):
                    dim=2)
 
         w = self.dense1(w)
+        w = apply_batch_norm(self.batchnorm1, w)
         w = F.relu(w)
 
         w = self.dense2(w)
+        w = apply_batch_norm(self.batchnorm2, w)
         w = F.relu(w)
         
         w = self.dense3(w)
+        w = apply_batch_norm(self.batchnorm3, w)
         w = F.relu(w)
 
         w = self.final(w)
@@ -99,27 +108,38 @@ class StatisticNetwork(to.nn.Module):
 
         # Input is whole dataset; a batch of dim(x)
         self.embed_dense1 = to.nn.Linear(x_dimension, dense_layer_size)
+        self.batchnorm1 = to.nn.BatchNorm1d(dense_layer_size)
         self.embed_dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm2 = to.nn.BatchNorm1d(dense_layer_size)
         self.embed_dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm3 = to.nn.BatchNorm1d(dense_layer_size)
 
         self.post_pool_dense1 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm4 = to.nn.BatchNorm1d(dense_layer_size)
         self.post_pool_dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm5 = to.nn.BatchNorm1d(dense_layer_size)
         # Output is Gaussian parameters for c
         self.post_pool_dense3 = to.nn.Linear(dense_layer_size, 2 * context_dimension)
 
+
     def forward(self, dataset):
         dataset = self.embed_dense1(dataset)
+        dataset = apply_batch_norm(self.batchnorm1, dataset)
         dataset = F.relu(dataset)
         dataset = self.embed_dense2(dataset)
+        dataset = apply_batch_norm(self.batchnorm2, dataset)
         dataset = F.relu(dataset)
         dataset = self.embed_dense3(dataset)
+        dataset = apply_batch_norm(self.batchnorm3, dataset)
         dataset = F.relu(dataset)
 
         dataset = dataset.mean(dim=1)
 
         dataset = self.post_pool_dense1(dataset)
+        dataset = apply_batch_norm(self.batchnorm4, dataset)
         dataset = F.relu(dataset)
         dataset = self.post_pool_dense2(dataset)
+        dataset = apply_batch_norm(self.batchnorm5, dataset)
         dataset = F.relu(dataset)
         dataset = self.post_pool_dense3(dataset)
 
@@ -133,10 +153,12 @@ class InferenceNetwork(to.nn.Module):
         super().__init__()
 
         # Input is dim(z_prev) + dim(c) + dim(x);
-        # CHECK: We're just taking a value of z_prev here, rather than a mean and variance, right?
         self.dense1 = to.nn.Linear(z_dimension + context_dimension + x_dimension, dense_layer_size)
+        self.batchnorm1 = to.nn.BatchNorm1d(dense_layer_size)
         self.dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm2 = to.nn.BatchNorm1d(dense_layer_size)
         self.dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm3 = to.nn.BatchNorm1d(dense_layer_size)
 
         # Outputs a mean and diagonal variance for the Gaussian
         # distribution defining z
@@ -153,17 +175,27 @@ class InferenceNetwork(to.nn.Module):
                    dim=2)
 
         w = self.dense1(w)
+        w = apply_batch_norm(self.batchnorm1, w)
         w = F.relu(w)
 
         w = self.dense2(w)
+        w = apply_batch_norm(self.batchnorm2, w)
         w = F.relu(w)
         
         w = self.dense3(w)
+        w = apply_batch_norm(self.batchnorm3, w)
         w = F.relu(w)
 
         w = self.final(w)
         # We've now computed mu_x and log sigma_x
         return w[:, :, :z_dimension], w[:, :, z_dimension:]
+    
+
+def apply_batch_norm(batch_norm, data):
+    original_shape = data.shape
+    data_list = data.view(-1, batch_norm.num_features)
+    data_list = batch_norm(data_list)
+    return data_list.view(original_shape)
 
 
 def generate_samples_like(network, datasets, timestamp, device, iteration=0):
