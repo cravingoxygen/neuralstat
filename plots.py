@@ -17,7 +17,7 @@ def plot_contexts_50_iterations_1D(network):
     one.plot_contexts_by_distribution(network, None, to.device("cuda"), save_plot=False, config=config)
 
 
-def plot_contexts_0_iterations_1D(network):
+def plot_contexts_0_iterations_1D():
     network = ns.NeuralStatistician(1, 3,
                                     one.LatentDecoder, one.ObservationDecoder,
                                     one.StatisticNetwork, one.InferenceNetwork, to.device("cuda"))
@@ -31,7 +31,7 @@ def plot_contexts_0_iterations_1D(network):
     one.plot_contexts_by_distribution(network, None, to.device("cuda"), save_plot=False, config=config)
 
 
-def plot_contexts_25_iterations_1D(network):
+def plot_contexts_25_iterations_1D():
     network = ns.NeuralStatistician(1, 3,
                                     one.LatentDecoder, one.ObservationDecoder,
                                     one.StatisticNetwork, one.InferenceNetwork, to.device("cuda"))
