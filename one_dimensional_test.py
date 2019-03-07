@@ -231,17 +231,17 @@ def plot_contexts_by_value(network, device, value, dataset=OneDimDataset(4000, 2
         config(scalar_map)
         plt.show()
         
-            
+        
 def generate_samples_like(network, datasets, timestamp, device, iteration=0):
     with to.no_grad():
         fig = plt.figure()
-        
+    
         test_datasets = [{"distribution": "exponential", "data":datasets[0]["dataset"]},
-            {"distribution": "normal", "data":datasets[datasets.block_size]["dataset"]}, 
-            {"distribution": "uniform", "data":datasets[datasets.block_size*2]["dataset"]}, 
-            {"distribution": "laplace", "data":datasets[datasets.block_size*3]["dataset"]},
-            ]
-            
+                         {"distribution": "normal", "data":datasets[datasets.block_size]["dataset"]},
+                         {"distribution": "uniform", "data":datasets[datasets.block_size*2]["dataset"]},
+                         {"distribution": "laplace", "data":datasets[datasets.block_size*3]["dataset"]},
+        ]
+        
         for single_dataset in test_datasets:
             reshaped_dataset = single_dataset["data"].to(device).view(1, -1, 1)
             samples = network.generate_like(reshaped_dataset).to("cpu") # Needed for numpy use below

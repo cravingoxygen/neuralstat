@@ -200,7 +200,22 @@ def apply_batch_norm(batch_norm, data):
 
 def generate_samples_like(network, datasets, timestamp, device, iteration=0):
     with to.no_grad():
-        pass
+        # Select an example of each digit from the dataset
+        sample_digits = [None] * 10
+        for dataset in datasets:
+            if not any(x is None for x in sample_digits):
+                break
+            label = np.argmax(dataset['label'])
+            if sample_digits[label] is None:
+                sample_digits[label] = dataset['dataset']
+
+        for digit in sample_digits:
+            # Make batch_norm work properly by placing it in evaluation mode
+            network.eval()
+            samples = network.generate_like(to.as_tensor(digit).unsqueeze(dim=0).to(device))
+            # Reset network to training mode
+            network.train()
+            import pdb; pdb.set_trace()
 
 
 def visualize_data(network, dataset, iteration, timestamp, device):
