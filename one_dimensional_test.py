@@ -211,7 +211,7 @@ def plot_contexts_by_distribution(network, timestamp, device, dataset=OneDimData
             plt.show()
 
 
-def plot_contexts_by_value(network, device, value, dataset=OneDimDataset(4000, 200)):
+def plot_contexts_by_value(network, device, value, dataset=OneDimDataset(4000, 200), config=lambda: None):
     """Plot the context means in context space, coloured by the mean of the original dataset."""
     with to.no_grad():
         fig = plt.figure()
@@ -228,7 +228,7 @@ def plot_contexts_by_value(network, device, value, dataset=OneDimDataset(4000, 2
             points = ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=scalar_map.to_rgba(dataset_values))
             
         scalar_map.set_array(dataset_values)
-        plt.colorbar(scalar_map)
+        config(scalar_map)
         plt.show()
         
             
