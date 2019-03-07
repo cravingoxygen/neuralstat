@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import os
 import datetime
+import pickle
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
@@ -182,7 +183,7 @@ class OneDimDataset(to.utils.data.Dataset):
         return len(self.data)
 
 
-def plot_contexts_by_distribution(network, timestamp, device, dataset=OneDimDataset(4000, 200), iteration=0, save_plot=True):
+def plot_contexts_by_distribution(network, timestamp, device, dataset=OneDimDataset(4000, 200), iteration=0, save_plot=True, config=lambda: None):
     """Plot the context means in context space, coloured by the distribution of the original dataset."""
     with to.no_grad():
         fig = plt.figure()
@@ -198,11 +199,13 @@ def plot_contexts_by_distribution(network, timestamp, device, dataset=OneDimData
             context_means = statistic_net_outputs[0].to("cpu") # Needed for numpy use below
             ax.scatter(context_means[:, 0], context_means[:, 1], context_means[:,2], c=colour)
 
+        config()
         if save_plot:
             path = "results/{}".format(timestamp)
             try: os.mkdir(path)
             except FileExistsError: pass
             plt.savefig("{}/contexts_iteration_{}".format(path, iteration))
+            pickle.dump(fig, open("{}/contexts_iteration_{}.plt".format(path, iteration), 'wb'))
             plt.close()
         else:
             plt.show()
@@ -250,6 +253,8 @@ def generate_samples_like(network, datasets, timestamp, device, iteration=0):
 def visualize_data(network, dataset, iteration, timestamp, device):
     plot_contexts_by_distribution(network, iteration=iteration, device=device, timestamp=timestamp)
     generate_samples_like(network, dataset, timestamp, device, iteration=iteration)
+    if iteration in [0, 25]:
+        network.serialise("results/{}/model_iteration_{}".format(timestamp, iteration))
 
 
 def main():
