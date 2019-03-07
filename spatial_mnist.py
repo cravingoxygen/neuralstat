@@ -145,7 +145,7 @@ class InferenceNetwork(to.nn.Module):
     def forward(self, x, c, z):
         """Computes x from a concatenation (w) of latent variables z_prev and context c."""
         if z is None:
-            z = to.zeros(*x.shape[0:2], z_dimension, device=device)
+            z = to.zeros(x.shape[0], x.shape[1], z_dimension, device=device)
         
         # Augment every data point in x with the context vector for that dataset
         w = to.cat((c.unsqueeze(dim=1).expand(-1, x.shape[1], -1),
@@ -165,7 +165,7 @@ class InferenceNetwork(to.nn.Module):
         # We've now computed mu_x and log sigma_x
         return w[:, :, :z_dimension], w[:, :, z_dimension:]
 
-            
+
 def generate_samples_like(network, datasets, timestamp, device, iteration=0):
     with to.no_grad():
         pass
