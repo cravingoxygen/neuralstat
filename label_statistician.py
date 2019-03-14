@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 class LabelStatistician(to.nn.Module):
     """Tying-together class to hold references for a particular experiment"""
 
-    def __init__(self, num_stochastic_layers, context_dimension, 
-                 LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork,
+    def __init__(self, num_stochastic_layers, context_dimension, label_prior,
+                 LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork
                  device="cpu"):
         super().__init__()
 
@@ -32,6 +32,8 @@ class LabelStatistician(to.nn.Module):
 
         self.context_prior_mean = to.zeros(context_dimension, device=self.device)
         self.context_prior_cov = to.ones(context_dimension, device=self.device)
+
+        self.label_prior = label_prior
 
         self.context_divergence_history = []
         self.latent_divergence_history = []
@@ -54,8 +56,8 @@ class LabelStatistician(to.nn.Module):
         ).sum(dim=1)
 
     
-    def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data):
-        """Compute the full model loss function"""
+    def compute_supervised_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data, label_indices):
+        """Compute the inner model loss function (for supervised data)"""
         batch_size = data.shape[0]
         sample_size = data.shape[1]
 
@@ -81,6 +83,7 @@ class LabelStatistician(to.nn.Module):
         
         reconstruction_loss = to.distributions.normal.Normal(
             loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=2).sum(dim=1)
+        reconstruction_loss += self.label_prior.log_prob(label_indices)
 
         self.context_divergence_history.append(context_divergence.sum().item())
         self.latent_divergence_history.append(latent_divergence.sum().item())
@@ -101,7 +104,22 @@ class LabelStatistician(to.nn.Module):
 
         #Logically, it makes sense to keep the divergences separate up until here. 
         #But we can probably optimize that
-        return (context_divergence + latent_divergence - reconstruction_loss).sum(dim=0) / (sample_size * batch_size)
+        return (context_divergence + latent_divergence - reconstruction_loss) / (sample_size)
+
+
+    def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data, labels, mask):
+        """Compute the full model loss function for both supervised and unsupervised data"""
+        batch_size = labels.shape[0]
+        num_labels = labels.shape[1]
+
+        loss = to.zeros_like(batch_size)
+        # Compute supervised loss contributions
+        loss[~mask] = self.compute_supervised_loss(context_output[~mask], inference_outputs[~mask], decoder_outputs[~mask], observation_decoder_outputs[~mask], data[~mask], labels[~mask].argmax())
+        # Compute unsupervised loss contributions
+        loss[mask] = (self.compute_supervised_loss(context_output[mask], inference_outputs[mask], decoder_outputs[mask], observation_decoder_outputs[mask], data[mask], to.ones_like(labels[mask]) * to.arange(num_labels)) \
+                      * labels[mask]).sum(dim=1)
+        loss[mask] -= (labels[mask] * to.log(labels[mask])).sum(dim=1)
+        return loss.sum(dim=0) / batch_size
 
 
     def predict(self, data, input_labels):
