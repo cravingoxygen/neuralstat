@@ -11,7 +11,7 @@ class LabelStatistician(to.nn.Module):
     """Tying-together class to hold references for a particular experiment"""
 
     def __init__(self, num_stochastic_layers, context_dimension, label_prior,
-                 LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork
+                 LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork,
                  device="cpu"):
         super().__init__()
 
@@ -192,8 +192,10 @@ class LabelStatistician(to.nn.Module):
             with tqdm(dataloader, unit="bch") as progress:
                 for data_batch in progress:
                     data = data_batch['dataset'].to(device)
-                    distribution_parameters = self.predict(data)
-                    loss = self.compute_loss(*distribution_parameters, data=data)
+                    statistic_net_outputs, inference_net_outputs, latent_dec_outputs, \
+                        observation_dec_outputs, full_labels, mask = self.predict(data, data_batch['labels'].to(device))
+                    loss = self.compute_loss(statistic_net_outputs, inference_net_outputs, latent_dec_outputs,
+                                             observation_dec_outputs, data, full_labels, mask)
                     progress.set_postfix(loss=loss.item())
                     
                     optimiser.zero_grad()
