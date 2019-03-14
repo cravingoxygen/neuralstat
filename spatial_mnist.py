@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 import spatialdata as spd
 import neural_statistician as ns
+import label_statistician as ls
 
 data_dir = "spatial_data/spatial"
 
@@ -19,6 +20,7 @@ dense_layer_size = 256
 x_dimension = 2
 z_dimension = 2
 num_stochastic_layers = 3
+num_y_labels = 10
 
 ### p(z_i | z_(i+1), c) parameterised by theta
 class LatentDecoder(to.nn.Module):
@@ -189,7 +191,53 @@ class InferenceNetwork(to.nn.Module):
         w = self.final(w)
         # We've now computed mu_x and log sigma_x
         return w[:, :, :z_dimension], w[:, :, z_dimension:]
-    
+
+
+### q(y | x) parameterised by phi
+class ClassificationNetwork(to.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        # Input is dim(x)
+        self.dense1 = to.nn.Linear(x_dimension, dense_layer_size)
+        self.batchnorm1 = to.nn.BatchNorm1d(dense_layer_size)
+        self.dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm2 = to.nn.BatchNorm1d(dense_layer_size)
+        self.dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm3 = to.nn.BatchNorm1d(dense_layer_size)
+
+        self.post_pool_dense1 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm4 = to.nn.BatchNorm1d(dense_layer_size)
+        self.post_pool_dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm5 = to.nn.BatchNorm1d(dense_layer_size)
+        # Output a softmaxed distribution over labels y
+        self.final = to.nn.Linear(dense_layer_size, num_y_labels)
+
+    def forward(self, x):
+        """Computes a distribution over labels y from input data x"""
+        y = self.embed_dense1(y)
+        y = apply_batch_norm(self.batchnorm1, y)
+        y = F.relu(y)
+        y = self.embed_dense2(y)
+        y = apply_batch_norm(self.batchnorm2, y)
+        y = F.relu(y)
+        y = self.embed_dense3(y)
+        y = apply_batch_norm(self.batchnorm3, y)
+        y = F.relu(y)
+
+        y = y.mean(dim=1)
+
+        y = self.post_pool_dense1(y)
+        y = apply_batch_norm(self.batchnorm4, y)
+        y = F.relu(y)
+        y = self.post_pool_dense2(y)
+        y = apply_batch_norm(self.batchnorm5, y)
+        y = F.relu(y)
+        y = self.final(y)
+        y = F.softmax(y)
+
+        return y
+
 
 def apply_batch_norm(batch_norm, data):
     original_shape = data.shape
@@ -215,14 +263,13 @@ def generate_samples_like(network, datasets, timestamp, device, iteration=0):
             samples = network.generate_like(to.as_tensor(digit).unsqueeze(dim=0).to(device))
             # Reset network to training mode
             network.train()
-            import pdb; pdb.set_trace()
 
 
 def visualize_data(network, dataset, iteration, timestamp, device):
     generate_samples_like(network, dataset, timestamp, device, iteration=iteration)
 
 
-def main():
+def main(labelled):
     timestamp = datetime.datetime.now()
 
     optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
@@ -231,11 +278,15 @@ def main():
     test_dataset = spd.SpatialMNISTDataset(data_dir, split='test')
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=16, shuffle=True)
     
-    
     test_func = lambda network, iteration: visualize_data(network, test_dataset, iteration, timestamp, device)
 
-    network = ns.NeuralStatistician(num_stochastic_layers, context_dimension, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, device)
-    
+    if labelled:
+        label_prior_probabilities = train_dataset['label'].sum(dim=0) / len(train_dataset)
+        label_prior = to.distributions.categorical.Categorical(probs=label_prior_probabilities)
+        network = ls.LabelStatistician(num_stochastic_layers, context_dimension, label_prior, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork, device)
+    else:
+        network = ns.NeuralStatistician(num_stochastic_layers, context_dimension, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, device)
+        
     test_func(network, 0)
     network.run_training(train_dataloader, 50, optimiser_func, test_func, device)
 
@@ -245,4 +296,4 @@ def main():
 
 
 if __name__ == '__main__':
-    network = main()
+    network = main(True)
