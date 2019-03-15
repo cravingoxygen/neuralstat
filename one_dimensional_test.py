@@ -236,16 +236,18 @@ def generate_samples_like(network, datasets, timestamp, device, iteration=0):
     with to.no_grad():
         fig = plt.figure()
     
-        test_datasets = [{"distribution": "exponential", "data":datasets[0]["dataset"]},
-                         {"distribution": "normal", "data":datasets[datasets.block_size]["dataset"]},
-                         {"distribution": "uniform", "data":datasets[datasets.block_size*2]["dataset"]},
-                         {"distribution": "laplace", "data":datasets[datasets.block_size*3]["dataset"]},
+        test_datasets = [{"distribution": "Exponential", "data":datasets[0]["dataset"]},
+                         {"distribution": "Normal", "data":datasets[datasets.block_size]["dataset"]},
+                         {"distribution": "Uniform", "data":datasets[datasets.block_size*2]["dataset"]},
+                         {"distribution": "Laplace", "data":datasets[datasets.block_size*3]["dataset"]},
         ]
         
         for single_dataset in test_datasets:
             reshaped_dataset = single_dataset["data"].to(device).view(1, -1, 1)
             samples = network.generate_like(reshaped_dataset).to("cpu") # Needed for numpy use below
-            plt.hist(samples, bins=100)
+            plt.title(single_dataset["distribution"] + " Samples")
+            plt.tight_layout()
+            plt.hist(samples, bins=20, density=True)
             plt.savefig("results/{}/{}_samples_{}".format(timestamp, single_dataset["distribution"], iteration))
             plt.close()
 
