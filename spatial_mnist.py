@@ -281,7 +281,7 @@ def main(labelled):
     test_func = lambda network, iteration: visualize_data(network, test_dataset, iteration, timestamp, device)
 
     if labelled:
-        label_prior_probabilities = train_dataset['label'].sum(dim=0) / len(train_dataset)
+        label_prior_probabilities = to.from_numpy(train_dataset[:]['label']).sum(dim=0) / len(train_dataset)
         label_prior = to.distributions.categorical.Categorical(probs=label_prior_probabilities)
         network = ls.LabelStatistician(num_stochastic_layers, context_dimension, label_prior, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork, device)
     else:

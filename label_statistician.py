@@ -24,11 +24,11 @@ class LabelStatistician(to.nn.Module):
         self.classification_network = ClassificationNetwork().to(self.device)
 
         for network in self.latent_decoders:
-            network.apply(NeuralStatistician.init_weights)
-        self.observation_decoder.apply(NeuralStatistician.init_weights)
-        self.statistic_network.apply(NeuralStatistician.init_weights)
+            network.apply(LabelStatistician.init_weights)
+        self.observation_decoder.apply(LabelStatistician.init_weights)
+        self.statistic_network.apply(LabelStatistician.init_weights)
         for network in self.inference_networks:
-            network.apply(NeuralStatistician.init_weights)
+            network.apply(LabelStatistician.init_weights)
 
         self.context_prior_mean = to.zeros(context_dimension, device=self.device)
         self.context_prior_cov = to.ones(context_dimension, device=self.device)
@@ -176,7 +176,7 @@ class LabelStatistician(to.nn.Module):
 
 
     def run_training(self, dataloader, num_iterations, optimiser_func, test_func, device="cpu"):
-        """Train the Neural Statistician"""
+        """Train the Label Statistician"""
 
         network_parameters = []
         for decoder in self.latent_decoders:
