@@ -174,10 +174,10 @@ class LabelStatistician(to.nn.Module):
         return mean + to.exp(0.5 * log_var) * std_errors
 
 
-    def generate(self, labels):
+    def generate_like(self, data, labels):
         #Here, we're recieving a tuple with one tensor in it. The tensor is what we need to 
         # split out to get to the mean and log_var
-        statistic_net_outputs = self.statistic_network(data)
+        statistic_net_outputs = self.statistic_network(data, labels)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
         
         inference_net_outputs = [self.inference_networks[0](data, contexts, None)]
@@ -192,6 +192,11 @@ class LabelStatistician(to.nn.Module):
         samples = self.reparameterise_normal(*observation_dec_outputs).squeeze()
 
         return samples
+
+
+    def generate(self, labels):
+        """Generate examples of the specified labels"""
+        pass
 
 
     def run_training(self, dataloader, num_iterations, optimiser_func, test_func, device="cpu"):
