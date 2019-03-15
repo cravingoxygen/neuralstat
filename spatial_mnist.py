@@ -9,7 +9,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
 import spatialdata as spd
-import spatialcreate as sc
+#import spatialcreate as sc
 import neural_statistician as ns
 import label_statistician as ls
 
@@ -335,6 +335,7 @@ def generate_samples_like(network, datasets, timestamp, device, iteration=0, all
 
 def visualize_data(network, dataset, images, labels, iteration, timestamp, device):
     #generate_samples_with_background(network, images, labels, timestamp, device, iteration=iteration)
+    pass
 
 def main(labelled):
     timestamp = datetime.datetime.now()
@@ -349,7 +350,7 @@ def main(labelled):
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
     
     #Load the actual mnist data so that we can plot the actual images in the background
-    images, labels = sc.load_data()
+    #images, labels = sc.load_data()
     test_func = lambda network, iteration: visualize_data(network, test_dataset, images, labels, iteration, timestamp, device)
 
     if labelled:
