@@ -9,8 +9,10 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
 import spatialdata as spd
+#import spatialcreate as sc
 import neural_statistician as ns
 import label_statistician as ls
+
 
 data_dir = "spatial_data/spatial"
 
@@ -246,39 +248,110 @@ def apply_batch_norm(batch_norm, data):
     return data_list.view(original_shape)
 
 
-def generate_samples_like(network, datasets, timestamp, device, iteration=0):
+def generate_samples_with_background(network, images, labels, timestamp, device, iteration=0):
+    
+    #Select first 50 test images
+    images = images[60000:60050]
+    sample_size = 50
+    spatial = np.zeros([50, sample_size, 2])
+    
+    #Generate samples points
+    grid = np.array([[i, j] for j in range(27, -1, -1) for i in range(28)])
+    for i, image in enumerate(images):
+        replace = True if (sum(image > 0) < sample_size) else False
+        ix = np.random.choice(range(28*28), size=sample_size,
+                              p=image/sum(image), replace=replace)
+        spatial[i, :, :] = grid[ix] + np.random.uniform(0, 1, (sample_size, 2))
+        
+    generated_samples = generate_samples_like(network, spatial, timestamp, device, all_datasets=True, make_plots=False)
+    fig, axs = plt.subplots(10, 10, figsize=(8, 8))
+    axs = axs.flatten()
+    for i in range(100):
+        if i % 2 == 0:
+            axs[i].imshow(np.flipud(images[int(i/2)].reshape(28,28)), cmap='gray', interpolation='none')
+            axs[i].scatter(spatial[int(i/2), :, 0], spatial[int(i/2), :, 1], s=2, c='b')
+        else:
+            axs[i].imshow(np.flipud(images[int(i/2)].reshape(28,28)), cmap='gray', interpolation='none')
+            axs[i].scatter(generated_samples[int(i/2)][:, 0].cpu(), generated_samples[int(i/2)][:, 1].cpu(), s=2, c='r')
+            
+        axs[i].set_xticks([])
+        axs[i].set_yticks([])
+        axs[i].set_xlim([0, 27])
+        axs[i].set_ylim([0, 27])
+        axs[i].set_aspect('equal', adjustable='box')
+    #plt.show()
+    
+    
+    plt.savefig("results/{}/samples_iteration_{}.png".format(timestamp, iteration))
+    plt.close()
+
+def generate_samples_like(network, datasets, timestamp, device, iteration=0, all_datasets=False, make_plots = True):
+    
     with to.no_grad():
-        # Select an example of each digit from the dataset
-        sample_digits = [None] * 10
-        for dataset in datasets:
-            if not any(x is None for x in sample_digits):
-                break
-            label = np.argmax(dataset['label'])
-            if sample_digits[label] is None:
-                sample_digits[label] = dataset['dataset']
+        # Make batch_norm work properly by placing it in evaluation mode
+        network.eval()
+        #import pdb; pdb.set_trace()
+        if not all_datasets:
+            # Select an example of each digit from the dataset
+            sample_digits = [None] * 10
+            for dataset in datasets:
+                if not any(x is None for x in sample_digits):
+                    break
+                label = np.argmax(dataset['label'])
+                if sample_digits[label] is None:
+                    sample_digits[label] = dataset['dataset']
+        else:
+            sample_digits = datasets
 
-        for digit in sample_digits:
-            # Make batch_norm work properly by placing it in evaluation mode
-            network.eval()
-            samples = network.generate_like(to.as_tensor(digit).unsqueeze(dim=0).to(device))
-            # Reset network to training mode
-            network.train()
+        #import pdb; pdb.set_trace()
+        generated_samples = []
+        for digit_idx in range(len(sample_digits)):
+            #import pdb; pdb.set_trace();
+            digit = sample_digits[digit_idx]
+            # Hack - we're supposed to have a sample for each digit
+            if digit is None:
+                continue
+                
+            samples = network.generate_like(to.as_tensor(digit, dtype=to.float).unsqueeze(dim=0).to(device))
+            generated_samples.append(samples)
+            
+            if make_plots:
+                fig, axs = plt.subplots(1,2, figsize=(21,7))
+                axs[0].set_xlim([-2, 30])
+                axs[0].set_ylim([-2, 30])
+                axs[1].set_xlim([-2, 30])
+                axs[1].set_ylim([-2, 30])
+                
+                axs[0].scatter(sample_digits[digit_idx][:,0], sample_digits[digit_idx][:,1])
+                axs[1].scatter(samples.cpu()[:,0], samples.cpu()[:,1])
+                plt.savefig("results/{}/samples_{}_iteration_{}.png".format(timestamp, digit_idx, iteration))
+                plt.close()
+            
+        # Reset network to training mode
+        network.train()
+        
+        return generated_samples
 
 
-def visualize_data(network, dataset, iteration, timestamp, device):
-    generate_samples_like(network, dataset, timestamp, device, iteration=iteration)
-
+def visualize_data(network, dataset, images, labels, iteration, timestamp, device):
+    #generate_samples_with_background(network, images, labels, timestamp, device, iteration=iteration)
+    pass
 
 def main(labelled):
     timestamp = datetime.datetime.now()
+    path = "results/{}".format(timestamp)
+    try: os.mkdir(path)
+    except FileExistsError: pass
 
     optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
     
     train_dataset = spd.SpatialMNISTDataset(data_dir, split='train')
     test_dataset = spd.SpatialMNISTDataset(data_dir, split='test')
-    train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=16, shuffle=True)
+    train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
     
-    test_func = lambda network, iteration: visualize_data(network, test_dataset, iteration, timestamp, device)
+    #Load the actual mnist data so that we can plot the actual images in the background
+    #images, labels = sc.load_data()
+    test_func = lambda network, iteration: visualize_data(network, test_dataset, images, labels, iteration, timestamp, device)
 
     if labelled:
         label_prior_probabilities = to.from_numpy(train_dataset[:]['label']).sum(dim=0) / len(train_dataset)
@@ -288,9 +361,11 @@ def main(labelled):
         network = ns.NeuralStatistician(num_stochastic_layers, context_dimension, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, device)
         
     test_func(network, 0)
-    network.run_training(train_dataloader, 50, optimiser_func, test_func, device)
+    network.run_training(train_dataloader, 300, optimiser_func, test_func, device)
 
     network.serialise("results/{}/trained_mnist_model".format(timestamp))
+    
+    
 
     return network
 
