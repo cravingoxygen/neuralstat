@@ -19,7 +19,7 @@ class LabelStatistician(to.nn.Module):
 
         self.latent_decoders = to.nn.ModuleList([LatentDecoder().to(self.device) for _ in range(num_stochastic_layers)])
         self.observation_decoder = ObservationDecoder().to(self.device)
-        self.statistic_network = StatisticNetwork().to(self.device)
+        self.statistic_network = StatisticNetwork(accept_labels=True).to(self.device)
         self.inference_networks = to.nn.ModuleList([InferenceNetwork().to(self.device) for _ in range(num_stochastic_layers)])
         self.classification_network = ClassificationNetwork().to(self.device)
 
@@ -107,18 +107,34 @@ class LabelStatistician(to.nn.Module):
         return (context_divergence + latent_divergence - reconstruction_loss) / (sample_size)
 
 
+    def recursive_apply_mask(self, data_tuple, mask):
+        return (self.recursive_apply_mask(element, mask) if not to.is_tensor(element)
+                else element[mask]
+                for element in data_tuple)
+
+
     def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data, labels, mask):
         """Compute the full model loss function for both supervised and unsupervised data"""
         batch_size = labels.shape[0]
         num_labels = labels.shape[1]
 
-        loss = to.zeros_like(batch_size)
+        loss = to.zeros(batch_size, device=self.device)
         # Compute supervised loss contributions
-        loss[~mask] = self.compute_supervised_loss(context_output[~mask], inference_outputs[~mask], decoder_outputs[~mask], observation_decoder_outputs[~mask], data[~mask], labels[~mask].argmax())
+        if any(~mask == 1):
+            loss[~mask] = self.compute_supervised_loss(self.recursive_apply_mask(context_output, ~mask),
+                                                       self.recursive_apply_mask(inference_outputs, ~mask),
+                                                       self.recursive_apply_mask(decoder_outputs, ~mask),
+                                                       self.recursive_apply_mask(observation_decoder_outputs, ~mask),
+                                                       data[~mask], labels[~mask].argmax(dim=1))
         # Compute unsupervised loss contributions
-        loss[mask] = (self.compute_supervised_loss(context_output[mask], inference_outputs[mask], decoder_outputs[mask], observation_decoder_outputs[mask], data[mask], to.ones_like(labels[mask]) * to.arange(num_labels)) \
-                      * labels[mask]).sum(dim=1)
-        loss[mask] -= (labels[mask] * to.log(labels[mask])).sum(dim=1)
+        if any(mask == 1):
+            loss[mask] = (self.compute_supervised_loss(self.recursive_apply_mask(context_output, mask),
+                                                       self.recursive_apply_mask(inference_outputs, mask),
+                                                       self.recursive_apply_mask(decoder_outputs, mask),
+                                                       self.recursive_apply_mask(observation_decoder_outputs, mask),
+                                                       data[mask], to.ones_like(labels[mask]) * to.arange(num_labels)) \
+                          * labels[mask]).sum(dim=1)
+            loss[mask] -= (labels[mask] * to.log(labels[mask])).sum(dim=1)
         return loss.sum(dim=0) / batch_size
 
 
@@ -127,8 +143,11 @@ class LabelStatistician(to.nn.Module):
         # split out to get to the mean and log_var
         # Generate missing labels from the classification network
         labels = input_labels.clone()
-        mask = (labels == None)
-        labels[mask] = self.classification_network(data[mask])
+        # Convert the mask from batch_size * labels to batch_size with a max for ?efficiency
+        # Use the first output of max() - the values themselves
+        mask = (labels == to.tensor(float('nan'), device=self.device)).max(dim=1)[0]
+        if any(mask == 1):
+            labels[mask] = self.classification_network(data[mask])
 
         statistic_net_outputs = self.statistic_network(data, labels)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
@@ -143,7 +162,7 @@ class LabelStatistician(to.nn.Module):
 
         observation_dec_outputs = self.observation_decoder(to.cat(latent_z, dim=2), contexts)
 
-        return statistic_net_outputs, inference_net_outputs, latent_dec_outputs, observation_dec_outputs, labels[mask], mask, 
+        return statistic_net_outputs, inference_net_outputs, latent_dec_outputs, observation_dec_outputs, labels, mask, 
 
 
     def reparameterise_normal(self, mean, log_var):
@@ -193,7 +212,7 @@ class LabelStatistician(to.nn.Module):
                 for data_batch in progress:
                     data = data_batch['dataset'].to(device)
                     statistic_net_outputs, inference_net_outputs, latent_dec_outputs, \
-                        observation_dec_outputs, full_labels, mask = self.predict(data, data_batch['labels'].to(device))
+                        observation_dec_outputs, full_labels, mask = self.predict(data, data_batch['label'].to(device))
                     loss = self.compute_loss(statistic_net_outputs, inference_net_outputs, latent_dec_outputs,
                                              observation_dec_outputs, data, full_labels, mask)
                     progress.set_postfix(loss=loss.item())

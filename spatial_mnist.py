@@ -107,11 +107,14 @@ class ObservationDecoder(to.nn.Module):
 
 ### q(c | D) parameterised by phi
 class StatisticNetwork(to.nn.Module):
-    def __init__(self):
+    def __init__(self, accept_labels):
         super().__init__()
 
-        # Input is whole dataset; a batch of dim(x)
-        self.embed_dense1 = to.nn.Linear(x_dimension, dense_layer_size)
+        # Input is whole dataset; a batch of dim(x) and labels of dim(y)
+        input_dim = x_dimension
+        if accept_labels:
+            input_dim += num_y_labels
+        self.embed_dense1 = to.nn.Linear(input_dim, dense_layer_size)
         self.batchnorm1 = to.nn.BatchNorm1d(dense_layer_size)
         self.embed_dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
         self.batchnorm2 = to.nn.BatchNorm1d(dense_layer_size)
@@ -126,29 +129,35 @@ class StatisticNetwork(to.nn.Module):
         self.post_pool_dense3 = to.nn.Linear(dense_layer_size, 2 * context_dimension)
 
 
-    def forward(self, dataset):
-        dataset = self.embed_dense1(dataset)
-        dataset = apply_batch_norm(self.batchnorm1, dataset)
-        dataset = F.relu(dataset)
-        dataset = self.embed_dense2(dataset)
-        dataset = apply_batch_norm(self.batchnorm2, dataset)
-        dataset = F.relu(dataset)
-        dataset = self.embed_dense3(dataset)
-        dataset = apply_batch_norm(self.batchnorm3, dataset)
-        dataset = F.relu(dataset)
+    def forward(self, dataset, labels=None):
+        if labels is None:
+            input_data = dataset
+        else:
+            input_data = to.cat((dataset, labels.unsqueeze(dim=1).expand(-1, dataset.shape[1], -1)),
+                                dim=2)
 
-        dataset = dataset.mean(dim=1)
+        result = self.embed_dense1(input_data)
+        result = apply_batch_norm(self.batchnorm1, result)
+        result = F.relu(result)
+        result = self.embed_dense2(result)
+        result = apply_batch_norm(self.batchnorm2, result)
+        result = F.relu(result)
+        result = self.embed_dense3(result)
+        result = apply_batch_norm(self.batchnorm3, result)
+        result = F.relu(result)
 
-        dataset = self.post_pool_dense1(dataset)
-        dataset = apply_batch_norm(self.batchnorm4, dataset)
-        dataset = F.relu(dataset)
-        dataset = self.post_pool_dense2(dataset)
-        dataset = apply_batch_norm(self.batchnorm5, dataset)
-        dataset = F.relu(dataset)
-        dataset = self.post_pool_dense3(dataset)
+        result = result.mean(dim=1)
+
+        result = self.post_pool_dense1(result)
+        result = apply_batch_norm(self.batchnorm4, result)
+        result = F.relu(result)
+        result = self.post_pool_dense2(result)
+        result = apply_batch_norm(self.batchnorm5, result)
+        result = F.relu(result)
+        result = self.post_pool_dense3(result)
 
         # Output means and variances, in that order
-        return dataset[:, :context_dimension], dataset[:, context_dimension:]
+        return result[:, :context_dimension], result[:, context_dimension:]
 
 
 ### q(z_i | z_(i+1), c, x) parameterised by phi
@@ -217,13 +226,13 @@ class ClassificationNetwork(to.nn.Module):
 
     def forward(self, x):
         """Computes a distribution over labels y from input data x"""
-        y = self.embed_dense1(y)
+        y = self.dense1(x)
         y = apply_batch_norm(self.batchnorm1, y)
         y = F.relu(y)
-        y = self.embed_dense2(y)
+        y = self.dense2(y)
         y = apply_batch_norm(self.batchnorm2, y)
         y = F.relu(y)
-        y = self.embed_dense3(y)
+        y = self.dense3(y)
         y = apply_batch_norm(self.batchnorm3, y)
         y = F.relu(y)
 
@@ -351,10 +360,11 @@ def main(labelled):
     
     #Load the actual mnist data so that we can plot the actual images in the background
     #images, labels = sc.load_data()
+    images, labels = None, None
     test_func = lambda network, iteration: visualize_data(network, test_dataset, images, labels, iteration, timestamp, device)
 
     if labelled:
-        label_prior_probabilities = to.from_numpy(train_dataset[:]['label']).sum(dim=0) / len(train_dataset)
+        label_prior_probabilities = to.from_numpy(train_dataset[:]['label']).to(device).sum(dim=0) / len(train_dataset)
         label_prior = to.distributions.categorical.Categorical(probs=label_prior_probabilities)
         network = ls.LabelStatistician(num_stochastic_layers, context_dimension, label_prior, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork, device)
     else:
