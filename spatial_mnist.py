@@ -368,8 +368,24 @@ def generate_samples_like(network, datasets, labels, timestamp, device, iteratio
         return generated_samples
 
 
+def plot_digit_dataset(digits):
+    """Take a collection of generated digit point clouds, and plot them."""
+    with to.no_grad():
+        fig, axs = plt.subplots(10, 10, figsize=(21,7))
+        axs = axs.flatten()
+        for index, digit in enumerate(digits[:100]):
+            axs[index].set_xlim([-2, 30])
+            axs[index].set_ylim([-2, 30])
+            axs[index].scatter(digit[:, 0].cpu(), digit[:, 1].cpu())
+        plt.show()
+
+
 def visualize_data(network, dataset, images, labels, iteration, timestamp, device):
-    generate_samples_with_background(network, images, labels, timestamp, device, iteration=iteration)
+    import pdb; pdb.set_trace()
+    with to.no_grad():
+        generate_samples_with_background(network, images, labels, timestamp, device, iteration=iteration)
+        generated_digits = network.generate(to.from_numpy(dataset['label']).to(device), samples_per_dataset=50)
+        plot_digit_dataset(generated_digits)
 
 
 def main(labelled):
@@ -383,11 +399,12 @@ def main(labelled):
     train_dataset = spd.SpatialMNISTDataset(data_dir, split='train')
     test_dataset = spd.SpatialMNISTDataset(data_dir, split='test')
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
+
     
     #Load the actual mnist data so that we can plot the actual images in the background
     images, labels = sc.load_data()
     # images, labels = None, None
-    test_func = lambda network, iteration: visualize_data(network, test_dataset, images, labels, iteration, timestamp, device)
+    test_func = lambda network, iteration: visualize_data(network, test_dataset[:100], images, labels, iteration, timestamp, device)
 
     if labelled:
         label_prior_probabilities = to.from_numpy(train_dataset[:]['label']).to(device).sum(dim=0) / len(train_dataset)
@@ -396,7 +413,8 @@ def main(labelled):
     else:
         network = ns.NeuralStatistician(num_stochastic_layers, context_dimension, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, device)
         
-    test_func(network, 0)
+    # test_func(network, 0)
+    import pdb; pdb.set_trace()
     network.run_training(train_dataloader, 200, optimiser_func, test_func, device)
 
     network.serialise("results/{}/trained_mnist_model".format(timestamp))
