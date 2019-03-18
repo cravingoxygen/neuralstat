@@ -9,10 +9,16 @@ import pickle
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--data-dir', required=False, type=str, default='./spatial_data/')
-args = parser.parse_args()
-assert (args.data_dir is not None) and (os.path.isdir(args.data_dir))
+try:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data-dir', required=False, type=str, default='./spatial_data/')
+    args = parser.parse_args()
+    assert (args.data_dir is not None) and (os.path.isdir(args.data_dir))
+except:
+    class FakeParser(object):
+        def __init__(self):
+            self.data_dir = './spatial_data/'
+    args = FakeParser()
 
 
 # CREATE SPATIAL MNIST

@@ -368,43 +368,39 @@ def generate_samples_like(network, datasets, labels, timestamp, device, iteratio
         return generated_samples
 
 
-def plot_digit_dataset(digits):
+def plot_digit_dataset(digits, labels, timestamp, iteration, make_plots=True):
     """Take a collection of generated digit point clouds, and plot them."""
     with to.no_grad():
-        fig, axs = plt.subplots(10, 10, figsize=(21,7))
+        fig, axs = plt.subplots(10, 10)
         axs = axs.flatten()
         for index, digit in enumerate(digits[:100]):
-            axs[index].set_xlim([-2, 30])
-            axs[index].set_ylim([-2, 30])
-            axs[index].scatter(digit[:, 0].cpu(), digit[:, 1].cpu())
-        plt.show()
+            axs[index].axis('equal')
+            axs[index].set_xlim([0, 28])
+            axs[index].set_ylim([0, 28])
+            axs[index].set_xticks([])
+            axs[index].set_yticks([])
+            axs[index].scatter(digit[:, 0].cpu(), digit[:, 1].cpu(), s=1, alpha=0.3)
+            axs[index].text(0, 14, labels[index].argmax().item())
+
+        if make_plots:
+            plt.show()
+        else:
+            plt.savefig("results/{}/test_generations_iteration_{}.png".format(timestamp, iteration))
+            plt.close()
 
 
 def visualize_data(network, dataset, images, labels, iteration, timestamp, device):
-    import pdb; pdb.set_trace()
     with to.no_grad():
         generate_samples_with_background(network, images, labels, timestamp, device, iteration=iteration)
-        generated_digits = network.generate(to.from_numpy(dataset['label']).to(device), samples_per_dataset=50)
-        plot_digit_dataset(generated_digits)
+        test_set_labels = to.from_numpy(dataset['label']).to(device)
+        generated_digits = network.generate(test_set_labels, samples_per_dataset=250)
+        plot_digit_dataset(generated_digits, test_set_labels, timestamp, iteration, make_plots=False)
 
 
-def main(labelled):
-    timestamp = datetime.datetime.now()
-    path = "results/{}".format(timestamp)
-    try: os.mkdir(path)
-    except FileExistsError: pass
-
-    optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
-    
+def initialise(labelled):
     train_dataset = spd.SpatialMNISTDataset(data_dir, split='train')
     test_dataset = spd.SpatialMNISTDataset(data_dir, split='test')
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
-
-    
-    #Load the actual mnist data so that we can plot the actual images in the background
-    images, labels = sc.load_data()
-    # images, labels = None, None
-    test_func = lambda network, iteration: visualize_data(network, test_dataset[:100], images, labels, iteration, timestamp, device)
 
     if labelled:
         label_prior_probabilities = to.from_numpy(train_dataset[:]['label']).to(device).sum(dim=0) / len(train_dataset)
@@ -412,15 +408,33 @@ def main(labelled):
         network = ls.LabelStatistician(num_stochastic_layers, context_dimension, label_prior, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork, ContextDecoder, device)
     else:
         network = ns.NeuralStatistician(num_stochastic_layers, context_dimension, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, device)
+
+    return {'network': network,
+            'train_dataloader': train_dataloader,
+            'test_dataset': test_dataset}
+
+
+def main(labelled):
+    init_objects = initialise(labelled)
+    network, train_dataloader, test_dataset = init_objects['network'], init_objects['train_dataloader'], init_objects['test_dataset']
         
-    # test_func(network, 0)
-    import pdb; pdb.set_trace()
-    network.run_training(train_dataloader, 200, optimiser_func, test_func, device)
+    timestamp = datetime.datetime.now()
+    path = "results/{}".format(timestamp)
+    try: os.mkdir(path)
+    except FileExistsError: pass
+
+    optimiser_func = lambda parameters: to.optim.Adam(parameters, lr=1e-3)
+    
+    #Load the actual mnist data so that we can plot the actual images in the background
+    images, labels = sc.load_data()
+    # images, labels = None, None
+    test_func = lambda network, iteration: visualize_data(network, test_dataset[:100], images, labels, iteration, timestamp, device)
+
+    test_func(network, 0)
+    network.run_training(train_dataloader, 500, optimiser_func, test_func, device)
 
     network.serialise("results/{}/trained_mnist_model".format(timestamp))
     
-    
-
     return network
 
 
