@@ -82,7 +82,8 @@ class LabelStatistician(to.nn.Module):
         
         reconstruction_loss = to.distributions.normal.Normal(
             loc=observation_decoder_mean, scale=to.exp(0.5 * observation_decoder_log_cov)).log_prob(data).sum(dim=2).sum(dim=1)
-        reconstruction_loss += self.label_prior.log_prob(label_indices)
+        reconstruction_loss = reconstruction_loss.unsqueeze(dim=1)
+        reconstruction_loss = reconstruction_loss + self.label_prior.log_prob(label_indices)
 
         self.context_divergence_history.append(context_divergence.sum().item())
         self.latent_divergence_history.append(latent_divergence.sum().item())
@@ -103,7 +104,7 @@ class LabelStatistician(to.nn.Module):
 
         #Logically, it makes sense to keep the divergences separate up until here. 
         #But we can probably optimize that
-        return (context_divergence + latent_divergence - reconstruction_loss) / (sample_size)
+        return (context_divergence.unsqueeze(dim=1) + latent_divergence.unsqueeze(dim=1) - reconstruction_loss) / (sample_size)
 
 
     def recursive_apply_mask(self, data_tuple, mask):
@@ -125,15 +126,15 @@ class LabelStatistician(to.nn.Module):
                                                        self.recursive_apply_mask(inference_outputs, ~mask),
                                                        self.recursive_apply_mask(decoder_outputs, ~mask),
                                                        self.recursive_apply_mask(observation_decoder_outputs, ~mask),
-                                                       data[~mask], labels[~mask].argmax(dim=1))
+                                                       data[~mask], labels[~mask].argmax(dim=1, keepdim=True)).squeeze(dim=1)
         # Compute unsupervised loss contributions
         if any(mask == 1):
             loss[mask] = (self.compute_supervised_loss(self.recursive_apply_mask(context_output, mask),
-                                                       self.recursive_apply_mask(context_decoder_outputs, ~mask),
+                                                       self.recursive_apply_mask(context_decoder_outputs, mask),
                                                        self.recursive_apply_mask(inference_outputs, mask),
                                                        self.recursive_apply_mask(decoder_outputs, mask),
                                                        self.recursive_apply_mask(observation_decoder_outputs, mask),
-                                                       data[mask], to.ones_like(labels[mask]) * to.arange(num_labels)) \
+                                                       data[mask], to.ones_like(labels[mask], dtype=to.long) * to.arange(num_labels, device=self.device)) \
                           * labels[mask]).sum(dim=1)
             loss[mask] -= (labels[mask] * to.log(labels[mask])).sum(dim=1)
         return loss.sum(dim=0) / batch_size
@@ -146,7 +147,7 @@ class LabelStatistician(to.nn.Module):
         labels = input_labels.clone()
         # Convert the mask from batch_size * labels to batch_size with a max for ?efficiency
         # Use the first output of max() - the values themselves
-        mask = (labels == to.tensor(float('nan'), device=self.device)).max(dim=1)[0]
+        mask = to.isnan(labels).max(dim=1)[0]
         if any(mask == 1):
             labels[mask] = self.classification_network(data[mask])
 
@@ -236,6 +237,8 @@ class LabelStatistician(to.nn.Module):
                         observation_dec_outputs, full_labels, mask = self.predict(data, data_batch['label'].to(device))
                     loss = self.compute_loss(statistic_net_outputs, context_decoder_outputs, inference_net_outputs, latent_dec_outputs,
                                              observation_dec_outputs, data, full_labels, mask)
+                    if to.isnan(loss):
+                        import pdb; pdb.set_trace()
                     progress.set_postfix(loss=loss.item())
                     
                     optimiser.zero_grad()

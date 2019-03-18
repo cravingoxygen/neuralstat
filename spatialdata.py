@@ -6,7 +6,7 @@ from torch.utils import data
 
 
 class SpatialMNISTDataset(data.Dataset):
-    def __init__(self, data_dir, split='train'):
+    def __init__(self, data_dir, split='train', unsupervision=None):
         splits = {
             'train': slice(0, 60000),
             'test': slice(60000, 70000)
@@ -23,17 +23,25 @@ class SpatialMNISTDataset(data.Dataset):
         self._spatial = np.array(spatial[splits[split]]).astype(np.float32)[:10000]
         self._labels = np.array(labels[splits[split]]).astype(np.float32)[:10000]
 
-        ix = self._labels[:, 1] != 1
-        self._spatial = self._spatial[ix]
-        self._labels = self._labels[ix]
+        # ix = self._labels[:, 1] != 1
+        # self._spatial = self._spatial[ix]
+        # self._labels = self._labels[ix]
 
         assert len(self._spatial) == len(self._labels)
         self._n = len(self._spatial)
 
+        self._full_labels = self._labels.copy()
+        if unsupervision is not None:
+            self.unsupervision_mask = np.random.choice([False, True], len(self._labels),
+                                                       p=[unsupervision, 1-unsupervision])
+            self._labels[~self.unsupervision_mask] = np.nan
+
     def __getitem__(self, item):
         # Original code has .reshape(50*2) on the data points
         # We need the original format of two-dimensional data, so removed
-        return {"dataset": self._spatial[item], "label": self._labels[item]}
+        return {"dataset": self._spatial[item],
+                "label": self._labels[item],
+                "full_label": self._full_labels[item]}
 
     def __len__(self):
         return self._n

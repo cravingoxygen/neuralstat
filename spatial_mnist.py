@@ -217,10 +217,9 @@ class ClassificationNetwork(to.nn.Module):
         self.dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
         self.batchnorm3 = to.nn.BatchNorm1d(dense_layer_size)
 
+        # No batch norming here, because we might have batches of size 1
         self.post_pool_dense1 = to.nn.Linear(dense_layer_size, dense_layer_size)
-        self.batchnorm4 = to.nn.BatchNorm1d(dense_layer_size)
         self.post_pool_dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
-        self.batchnorm5 = to.nn.BatchNorm1d(dense_layer_size)
         # Output a softmaxed distribution over labels y
         self.final = to.nn.Linear(dense_layer_size, num_y_labels)
 
@@ -239,10 +238,8 @@ class ClassificationNetwork(to.nn.Module):
         y = y.mean(dim=1)
 
         y = self.post_pool_dense1(y)
-        y = apply_batch_norm(self.batchnorm4, y)
         y = F.relu(y)
         y = self.post_pool_dense2(y)
-        y = apply_batch_norm(self.batchnorm5, y)
         y = F.relu(y)
         y = self.final(y)
         y = F.softmax(y)
@@ -397,13 +394,13 @@ def visualize_data(network, dataset, images, labels, iteration, timestamp, devic
         plot_digit_dataset(generated_digits, test_set_labels, timestamp, iteration, make_plots=False)
 
 
-def initialise(labelled):
-    train_dataset = spd.SpatialMNISTDataset(data_dir, split='train')
+def initialise(labelled, unsupervision):
+    train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision)
     test_dataset = spd.SpatialMNISTDataset(data_dir, split='test')
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
 
     if labelled:
-        label_prior_probabilities = to.from_numpy(train_dataset[:]['label']).to(device).sum(dim=0) / len(train_dataset)
+        label_prior_probabilities = to.from_numpy(train_dataset[train_dataset.unsupervision_mask]['label']).to(device).sum(dim=0) / train_dataset.unsupervision_mask.sum()
         label_prior = to.distributions.categorical.Categorical(probs=label_prior_probabilities)
         network = ls.LabelStatistician(num_stochastic_layers, context_dimension, label_prior, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork, ContextDecoder, device)
     else:
@@ -414,8 +411,8 @@ def initialise(labelled):
             'test_dataset': test_dataset}
 
 
-def main(labelled):
-    init_objects = initialise(labelled)
+def main(labelled, unsupervision):
+    init_objects = initialise(labelled, unsupervision)
     network, train_dataloader, test_dataset = init_objects['network'], init_objects['train_dataloader'], init_objects['test_dataset']
         
     timestamp = datetime.datetime.now()
@@ -439,4 +436,4 @@ def main(labelled):
 
 
 if __name__ == '__main__':
-    network = main(True)
+    network = main(True, 0.25)
