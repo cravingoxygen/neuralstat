@@ -287,7 +287,6 @@ def apply_batch_norm(batch_norm, data):
 
 
 def generate_samples_with_background(network, images, labels, timestamp, device, iteration=0):
-    
     #Select first 50 test images
     images = images[60000:60050]
     sample_size = 50
@@ -324,7 +323,6 @@ def generate_samples_with_background(network, images, labels, timestamp, device,
 
     
 def generate_samples_like(network, datasets, labels, timestamp, device, iteration=0, all_datasets=False, make_plots = True):
-    
     with to.no_grad():
         # Make batch_norm work properly by placing it in evaluation mode
         network.eval()

@@ -198,7 +198,19 @@ class LabelStatistician(to.nn.Module):
 
     def generate(self, labels):
         """Generate examples of the specified labels"""
-        pass
+        context_decoder_outputs = self.context_decoder(labels)
+        contexts = self.reparameterise_normal(*context_decoder_outputs)
+
+        latent_dec_outputs = [self.latent_decoders[0](contexts, None)]
+        latent_z = [self.reparameterise_normal(*latent_dec_outputs[0])]
+        for latent_decoder in self.latent_decoders[1:]:
+            latent_dec_outputs.append(latent_decoder(contexts, latent_z[-1]))
+            latent_z.append(self.reparameterise_normal(*latent_dec_outputs[-1]))
+
+        observation_dec_outputs = self.observation_decoder(to.cat(latent_z, dim=2), contexts)
+        samples = self.reparameterise_normal(*observation_dec_outputs).squeeze()
+
+        return samples
 
 
     def run_training(self, dataloader, num_iterations, optimiser_func, test_func, device="cpu"):
