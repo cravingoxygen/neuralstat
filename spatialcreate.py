@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data-dir', required=False, type=str, default='')
+parser.add_argument('--data-dir', required=False, type=str, default='./spatial_data/')
 args = parser.parse_args()
 assert (args.data_dir is not None) and (os.path.isdir(args.data_dir))
 

@@ -11,7 +11,7 @@ class LabelStatistician(to.nn.Module):
     """Tying-together class to hold references for a particular experiment"""
 
     def __init__(self, num_stochastic_layers, context_dimension, label_prior,
-                 LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork,
+                 LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork, ContextDecoder,
                  device="cpu"):
         super().__init__()
 
@@ -22,6 +22,7 @@ class LabelStatistician(to.nn.Module):
         self.statistic_network = StatisticNetwork(accept_labels=True).to(self.device)
         self.inference_networks = to.nn.ModuleList([InferenceNetwork().to(self.device) for _ in range(num_stochastic_layers)])
         self.classification_network = ClassificationNetwork().to(self.device)
+        self.context_decoder = ContextDecoder().to(self.device)
 
         for network in self.latent_decoders:
             network.apply(LabelStatistician.init_weights)
@@ -29,9 +30,6 @@ class LabelStatistician(to.nn.Module):
         self.statistic_network.apply(LabelStatistician.init_weights)
         for network in self.inference_networks:
             network.apply(LabelStatistician.init_weights)
-
-        self.context_prior_mean = to.zeros(context_dimension, device=self.device)
-        self.context_prior_cov = to.ones(context_dimension, device=self.device)
 
         self.label_prior = label_prior
 
@@ -56,17 +54,18 @@ class LabelStatistician(to.nn.Module):
         ).sum(dim=1)
 
     
-    def compute_supervised_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data, label_indices):
+    def compute_supervised_loss(self, context_output, context_decoder_outputs, inference_outputs, decoder_outputs, observation_decoder_outputs, data, label_indices):
         """Compute the inner model loss function (for supervised data)"""
         batch_size = data.shape[0]
         sample_size = data.shape[1]
 
         # Context divergence
         context_mean, context_log_cov = context_output
+        generative_mean, generative_log_cov = context_decoder_outputs
         # Handle this case without separate data points by introducing a dummy
         # dimension, as if there were exactly 1 data point
         context_divergence = self.normal_kl_divergence(context_mean.unsqueeze(dim=1), to.exp(context_log_cov).unsqueeze(dim=1),
-                                                       self.context_prior_mean.expand_as(context_mean.unsqueeze(dim=1)), self.context_prior_cov.expand_as(context_log_cov.unsqueeze(dim=1)))
+                                                       generative_mean.unsqueeze(dim=1), to.exp(generative_log_cov).unsqueeze(dim=1))
 
         # Latent divergence
         # For computational efficiency, draw a single sample context from q(c, z | D, phi)
@@ -113,7 +112,7 @@ class LabelStatistician(to.nn.Module):
                 for element in data_tuple)
 
 
-    def compute_loss(self, context_output, inference_outputs, decoder_outputs, observation_decoder_outputs, data, labels, mask):
+    def compute_loss(self, context_output, context_decoder_outputs, inference_outputs, decoder_outputs, observation_decoder_outputs, data, labels, mask):
         """Compute the full model loss function for both supervised and unsupervised data"""
         batch_size = labels.shape[0]
         num_labels = labels.shape[1]
@@ -122,6 +121,7 @@ class LabelStatistician(to.nn.Module):
         # Compute supervised loss contributions
         if any(~mask == 1):
             loss[~mask] = self.compute_supervised_loss(self.recursive_apply_mask(context_output, ~mask),
+                                                       self.recursive_apply_mask(context_decoder_outputs, ~mask),
                                                        self.recursive_apply_mask(inference_outputs, ~mask),
                                                        self.recursive_apply_mask(decoder_outputs, ~mask),
                                                        self.recursive_apply_mask(observation_decoder_outputs, ~mask),
@@ -129,6 +129,7 @@ class LabelStatistician(to.nn.Module):
         # Compute unsupervised loss contributions
         if any(mask == 1):
             loss[mask] = (self.compute_supervised_loss(self.recursive_apply_mask(context_output, mask),
+                                                       self.recursive_apply_mask(context_decoder_outputs, ~mask),
                                                        self.recursive_apply_mask(inference_outputs, mask),
                                                        self.recursive_apply_mask(decoder_outputs, mask),
                                                        self.recursive_apply_mask(observation_decoder_outputs, mask),
@@ -151,6 +152,7 @@ class LabelStatistician(to.nn.Module):
 
         statistic_net_outputs = self.statistic_network(data, labels)
         contexts = self.reparameterise_normal(*statistic_net_outputs)
+        context_decoder_outputs = self.context_decoder(labels)
 
         inference_net_outputs = [self.inference_networks[0](data, contexts, None)]
         latent_dec_outputs = [self.latent_decoders[0](contexts, None)]
@@ -162,7 +164,7 @@ class LabelStatistician(to.nn.Module):
 
         observation_dec_outputs = self.observation_decoder(to.cat(latent_z, dim=2), contexts)
 
-        return statistic_net_outputs, inference_net_outputs, latent_dec_outputs, observation_dec_outputs, labels, mask, 
+        return statistic_net_outputs, context_decoder_outputs, inference_net_outputs, latent_dec_outputs, observation_dec_outputs, labels, mask, 
 
 
     def reparameterise_normal(self, mean, log_var):
@@ -216,9 +218,9 @@ class LabelStatistician(to.nn.Module):
             with tqdm(dataloader, unit="bch") as progress:
                 for data_batch in progress:
                     data = data_batch['dataset'].to(device)
-                    statistic_net_outputs, inference_net_outputs, latent_dec_outputs, \
+                    statistic_net_outputs, context_decoder_outputs, inference_net_outputs, latent_dec_outputs, \
                         observation_dec_outputs, full_labels, mask = self.predict(data, data_batch['label'].to(device))
-                    loss = self.compute_loss(statistic_net_outputs, inference_net_outputs, latent_dec_outputs,
+                    loss = self.compute_loss(statistic_net_outputs, context_decoder_outputs, inference_net_outputs, latent_dec_outputs,
                                              observation_dec_outputs, data, full_labels, mask)
                     progress.set_postfix(loss=loss.item())
                     

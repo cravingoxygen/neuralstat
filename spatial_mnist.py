@@ -9,7 +9,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
 import spatialdata as spd
-#import spatialcreate as sc
+import spatialcreate as sc
 import neural_statistician as ns
 import label_statistician as ls
 
@@ -250,6 +250,35 @@ class ClassificationNetwork(to.nn.Module):
         return y
 
 
+### p(c | y) parameterised by theta
+class ContextDecoder(to.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        # Input is dim(y)
+        self.dense1 = to.nn.Linear(num_y_labels, dense_layer_size)
+        self.batchnorm1 = to.nn.BatchNorm1d(dense_layer_size)
+        self.dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm2 = to.nn.BatchNorm1d(dense_layer_size)
+        self.dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.batchnorm3 = to.nn.BatchNorm1d(dense_layer_size)
+        self.final = to.nn.Linear(dense_layer_size, 2 * context_dimension)
+
+    def forward(self, y):
+        output = self.dense1(y)
+        output = apply_batch_norm(self.batchnorm1, output)
+        output = F.relu(output)
+        output = self.dense2(output)
+        output = apply_batch_norm(self.batchnorm2, output)
+        output = F.relu(output)
+        output = self.dense3(output)
+        output = apply_batch_norm(self.batchnorm3, output)
+        output = F.relu(output)
+        output = self.final(output)
+
+        return output[:, context_dimension:], output[:, :context_dimension]
+
+
 def apply_batch_norm(batch_norm, data):
     original_shape = data.shape
     data_list = data.view(-1, batch_norm.num_features)
@@ -272,7 +301,7 @@ def generate_samples_with_background(network, images, labels, timestamp, device,
                               p=image/sum(image), replace=replace)
         spatial[i, :, :] = grid[ix] + np.random.uniform(0, 1, (sample_size, 2))
         
-    generated_samples = generate_samples_like(network, spatial, timestamp, device, all_datasets=True, make_plots=False)
+    generated_samples = generate_samples_like(network, spatial, labels, timestamp, device, all_datasets=True, make_plots=False)
     fig, axs = plt.subplots(10, 10, figsize=(8, 8))
     axs = axs.flatten()
     for i in range(100):
@@ -290,16 +319,15 @@ def generate_samples_with_background(network, images, labels, timestamp, device,
         axs[i].set_aspect('equal', adjustable='box')
     #plt.show()
     
-    
     plt.savefig("results/{}/samples_iteration_{}.png".format(timestamp, iteration))
     plt.close()
 
-def generate_samples_like(network, datasets, timestamp, device, iteration=0, all_datasets=False, make_plots = True):
+    
+def generate_samples_like(network, datasets, labels, timestamp, device, iteration=0, all_datasets=False, make_plots = True):
     
     with to.no_grad():
         # Make batch_norm work properly by placing it in evaluation mode
         network.eval()
-        #import pdb; pdb.set_trace()
         if not all_datasets:
             # Select an example of each digit from the dataset
             sample_digits = [None] * 10
@@ -312,16 +340,16 @@ def generate_samples_like(network, datasets, timestamp, device, iteration=0, all
         else:
             sample_digits = datasets
 
-        #import pdb; pdb.set_trace()
         generated_samples = []
         for digit_idx in range(len(sample_digits)):
-            #import pdb; pdb.set_trace();
             digit = sample_digits[digit_idx]
+            label = labels[digit_idx]
             # Hack - we're supposed to have a sample for each digit
             if digit is None:
                 continue
                 
-            samples = network.generate_like(to.as_tensor(digit, dtype=to.float).unsqueeze(dim=0).to(device))
+            samples = network.generate_like(to.as_tensor(digit, dtype=to.float).unsqueeze(dim=0).to(device),
+                                            to.as_tensor(label, dtype=to.float).unsqueeze(dim=0).to(device))
             generated_samples.append(samples)
             
             if make_plots:
@@ -343,8 +371,8 @@ def generate_samples_like(network, datasets, timestamp, device, iteration=0, all
 
 
 def visualize_data(network, dataset, images, labels, iteration, timestamp, device):
-    #generate_samples_with_background(network, images, labels, timestamp, device, iteration=iteration)
-    pass
+    generate_samples_with_background(network, images, labels, timestamp, device, iteration=iteration)
+
 
 def main(labelled):
     timestamp = datetime.datetime.now()
@@ -359,14 +387,14 @@ def main(labelled):
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
     
     #Load the actual mnist data so that we can plot the actual images in the background
-    #images, labels = sc.load_data()
-    images, labels = None, None
+    images, labels = sc.load_data()
+    # images, labels = None, None
     test_func = lambda network, iteration: visualize_data(network, test_dataset, images, labels, iteration, timestamp, device)
 
     if labelled:
         label_prior_probabilities = to.from_numpy(train_dataset[:]['label']).to(device).sum(dim=0) / len(train_dataset)
         label_prior = to.distributions.categorical.Categorical(probs=label_prior_probabilities)
-        network = ls.LabelStatistician(num_stochastic_layers, context_dimension, label_prior, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork, device)
+        network = ls.LabelStatistician(num_stochastic_layers, context_dimension, label_prior, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, ClassificationNetwork, ContextDecoder, device)
     else:
         network = ns.NeuralStatistician(num_stochastic_layers, context_dimension, LatentDecoder, ObservationDecoder, StatisticNetwork, InferenceNetwork, device)
         
