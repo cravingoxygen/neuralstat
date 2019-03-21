@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import os
 import datetime
+import tsne
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
@@ -107,7 +108,7 @@ class ObservationDecoder(to.nn.Module):
 
 ### q(c | D) parameterised by phi
 class StatisticNetwork(to.nn.Module):
-    def __init__(self, accept_labels):
+    def __init__(self, accept_labels=False):
         super().__init__()
 
         # Input is whole dataset; a batch of dim(x) and labels of dim(y)
@@ -392,12 +393,32 @@ def plot_digit_dataset(digits, labels, timestamp, iteration, make_plots=True):
 def visualize_data(network, dataset, images, labels, iteration, timestamp, device):
     with to.no_grad():
         generate_samples_with_background(network, images, labels, timestamp, device, iteration=iteration)
-        test_set_labels = to.from_numpy(dataset['label']).to(device)
+        # test_set_labels = to.from_numpy(dataset['label']).to(device)
+        test_set_labels = to.arange(10).unsqueeze(1).expand(10, 10)
         generated_digits = network.generate(test_set_labels, samples_per_dataset=250)
         plot_digit_dataset(generated_digits, test_set_labels, timestamp, iteration, make_plots=False)
 
 
-def initialise(labelled, unsupervision):
+def visualise_context(network, dataset, device):
+    """Plot a low-dimensional representation of the context space"""
+    with to.no_grad():
+        network.eval()
+        contexts = []
+        labels = []
+        for batch in dataset:
+            # Extract means only, so the 0th element
+            contexts.append(network.statistic_network.forward(batch['dataset'].to(device), batch['label'].to(device))[0])
+            labels.append(batch['label'])
+        contexts = to.cat(contexts, dim=0)
+        labels = to.cat(labels, dim=0)
+
+        data = tsne.tsne(contexts.cpu().numpy(), no_dims=2, initial_dims=contexts.shape[1], perplexity=30.0)
+        plt.scatter(data[:, 0], data[:, 1], c=labels.argmax(dim=1).cpu().numpy())
+        plt.show()
+        network.train()
+
+
+def initialise(labelled, unsupervision=0):
     train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision)
     test_dataset = spd.SpatialMNISTDataset(data_dir, split='test')
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
@@ -414,7 +435,9 @@ def initialise(labelled, unsupervision):
             'test_dataset': test_dataset}
 
 
-def main(labelled, unsupervision):
+def main(labelled, unsupervision=0):
+    if unsupervision is None:
+        unsupervision = 0
     init_objects = initialise(labelled, unsupervision)
     network, train_dataloader, test_dataset = init_objects['network'], init_objects['train_dataloader'], init_objects['test_dataset']
         
@@ -437,6 +460,16 @@ def main(labelled, unsupervision):
     
     return network
 
+def test_labels():
+    unsupervision=0
+    train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision)
+    train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
+    for batch in train_dataloader:
+        for digit in range(len(batch)):
+            plt.figure()
+            plt.scatter(batch['dataset'][digit][:,0], batch['dataset'][digit][:,1])
+            plt.text(0, 0, batch['label'][digit].argmax().item())
+            plt.show()
 
 if __name__ == '__main__':
     network = main(True, 0)

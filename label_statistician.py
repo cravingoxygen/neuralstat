@@ -237,8 +237,6 @@ class LabelStatistician(to.nn.Module):
                         observation_dec_outputs, full_labels, mask = self.predict(data, data_batch['label'].to(device))
                     loss = self.compute_loss(statistic_net_outputs, context_decoder_outputs, inference_net_outputs, latent_dec_outputs,
                                              observation_dec_outputs, data, full_labels, mask)
-                    if to.isnan(loss):
-                        import pdb; pdb.set_trace()
                     progress.set_postfix(loss=loss.item())
                     
                     optimiser.zero_grad()
