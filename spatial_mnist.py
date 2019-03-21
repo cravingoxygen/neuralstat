@@ -111,17 +111,17 @@ class StatisticNetwork(to.nn.Module):
         super().__init__()
 
         # Input is whole dataset; a batch of dim(x) and labels of dim(y)
-        input_dim = x_dimension
+        post_pool_dim = dense_layer_size
         if accept_labels:
-            input_dim += num_y_labels
-        self.embed_dense1 = to.nn.Linear(input_dim, dense_layer_size)
+            post_pool_dim += num_y_labels
+        self.embed_dense1 = to.nn.Linear(x_dimension, dense_layer_size)
         self.batchnorm1 = to.nn.BatchNorm1d(dense_layer_size)
         self.embed_dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
         self.batchnorm2 = to.nn.BatchNorm1d(dense_layer_size)
         self.embed_dense3 = to.nn.Linear(dense_layer_size, dense_layer_size)
         self.batchnorm3 = to.nn.BatchNorm1d(dense_layer_size)
 
-        self.post_pool_dense1 = to.nn.Linear(dense_layer_size, dense_layer_size)
+        self.post_pool_dense1 = to.nn.Linear(post_pool_dim, dense_layer_size)
         self.batchnorm4 = to.nn.BatchNorm1d(dense_layer_size)
         self.post_pool_dense2 = to.nn.Linear(dense_layer_size, dense_layer_size)
         self.batchnorm5 = to.nn.BatchNorm1d(dense_layer_size)
@@ -130,13 +130,13 @@ class StatisticNetwork(to.nn.Module):
 
 
     def forward(self, dataset, labels=None):
-        if labels is None:
-            input_data = dataset
-        else:
-            input_data = to.cat((dataset, labels.unsqueeze(dim=1).expand(-1, dataset.shape[1], -1)),
-                                dim=2)
+        #if labels is None:
+        #    input_data = dataset
+        #else:
+        #    input_data = to.cat((dataset, labels.unsqueeze(dim=1).expand(-1, dataset.shape[1], -1)),
+        #                        dim=2)
 
-        result = self.embed_dense1(input_data)
+        result = self.embed_dense1(dataset)
         result = apply_batch_norm(self.batchnorm1, result)
         result = F.relu(result)
         result = self.embed_dense2(result)
@@ -147,7 +147,10 @@ class StatisticNetwork(to.nn.Module):
         result = F.relu(result)
 
         result = result.mean(dim=1)
-
+        
+        if labels is not None:
+            result = to.cat((result, labels), dim=1)
+            
         result = self.post_pool_dense1(result)
         result = apply_batch_norm(self.batchnorm4, result)
         result = F.relu(result)
@@ -436,4 +439,4 @@ def main(labelled, unsupervision):
 
 
 if __name__ == '__main__':
-    network = main(True, 0.25)
+    network = main(True, 0)
