@@ -394,7 +394,7 @@ def visualize_data(network, dataset, images, labels, iteration, timestamp, devic
         plot_digit_dataset(generated_digits, test_set_labels, timestamp, iteration, make_plots=False)
 
 
-def initialise(labelled, unsupervision):
+def initialise(labelled, unsupervision=0):
     train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision)
     test_dataset = spd.SpatialMNISTDataset(data_dir, split='test')
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
@@ -411,7 +411,9 @@ def initialise(labelled, unsupervision):
             'test_dataset': test_dataset}
 
 
-def main(labelled, unsupervision):
+def main(labelled, unsupervision=0):
+    if unsupervision is None:
+        unsupervision = 0
     init_objects = initialise(labelled, unsupervision)
     network, train_dataloader, test_dataset = init_objects['network'], init_objects['train_dataloader'], init_objects['test_dataset']
         
@@ -437,3 +439,15 @@ def main(labelled, unsupervision):
 
 if __name__ == '__main__':
     network = main(True, 0.25)
+
+
+def test_labels():
+    unsupervision=0
+    train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision)
+    train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
+    for batch in train_dataloader:
+        for digit in range(len(batch)):
+            plt.figure()
+            plt.scatter(batch['dataset'][digit][:,0], batch['dataset'][digit][:,1])
+            plt.text(0, 0, batch['label'][digit].argmax().item())
+            plt.show()

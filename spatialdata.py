@@ -6,7 +6,7 @@ from torch.utils import data
 
 
 class SpatialMNISTDataset(data.Dataset):
-    def __init__(self, data_dir, split='train', unsupervision=None):
+    def __init__(self, data_dir, split='train', unsupervision=0):
         splits = {
             'train': slice(0, 60000),
             'test': slice(60000, 70000)
@@ -31,10 +31,9 @@ class SpatialMNISTDataset(data.Dataset):
         self._n = len(self._spatial)
 
         self._full_labels = self._labels.copy()
-        if unsupervision is not None:
-            self.unsupervision_mask = np.random.choice([False, True], len(self._labels),
-                                                       p=[unsupervision, 1-unsupervision])
-            self._labels[~self.unsupervision_mask] = np.nan
+        self.unsupervision_mask = np.random.choice([False, True], len(self._labels),
+                                                   p=[unsupervision, 1-unsupervision])
+        self._labels[~self.unsupervision_mask] = np.nan
 
     def __getitem__(self, item):
         # Original code has .reshape(50*2) on the data points
