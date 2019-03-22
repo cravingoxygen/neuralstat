@@ -30,6 +30,8 @@ class LabelStatistician(to.nn.Module):
         self.statistic_network.apply(LabelStatistician.init_weights)
         for network in self.inference_networks:
             network.apply(LabelStatistician.init_weights)
+        self.context_decoder.apply(LabelStatistician.init_weights)
+        self.classification_network.apply(LabelStatistician.init_weights)
 
         self.label_prior = label_prior
 
