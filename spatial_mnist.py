@@ -329,7 +329,7 @@ def generate_samples_like(network, datasets, labels, timestamp, device, iteratio
         network.eval()
         if not all_datasets:
             # Select an example of each digit from the dataset
-            sample_digits = [None] * 10
+            sample_digits = [None] * num_y_labels
             for dataset in datasets:
                 if not any(x is None for x in sample_digits):
                     break
@@ -391,11 +391,12 @@ def plot_digit_dataset(digits, labels, timestamp, iteration, make_plots=True):
 
 
 def visualize_data(network, dataset, images, labels, iteration, timestamp, device):
+    num_samples = 100
     with to.no_grad():
         generate_samples_with_background(network, images, labels, timestamp, device, iteration=iteration)
         # test_set_labels = to.from_numpy(dataset['label']).to(device)
-        test_set_labels = to.zeros((100, 10), device=device).scatter_(
-            1, to.arange(10).to(device).unsqueeze(1).expand(10, 10).flatten().unsqueeze(1), 1)
+        test_set_labels = to.zeros((num_samples, num_y_labels), device=device).scatter_(
+            1, to.arange(num_y_labels).to(device).unsqueeze(1).expand(num_y_labels, num_samples//num_y_labels).flatten().unsqueeze(1), 1)
         generated_digits = network.generate(test_set_labels, samples_per_dataset=250)
         plot_digit_dataset(generated_digits, test_set_labels, timestamp, iteration, make_plots=False)
 
@@ -419,9 +420,9 @@ def visualise_context(network, dataset, device):
         network.train()
 
 
-def initialise(labelled, unsupervision=0):
-    train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision)
-    test_dataset = spd.SpatialMNISTDataset(data_dir, split='test')
+def initialise(labelled, unsupervision=0, odd_even_labels=False):
+    train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision, odd_even_labels=odd_even_labels)
+    test_dataset = spd.SpatialMNISTDataset(data_dir, split='test', odd_even_labels=odd_even_labels)
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
 
     if labelled:
@@ -436,10 +437,16 @@ def initialise(labelled, unsupervision=0):
             'test_dataset': test_dataset}
 
 
-def main(labelled, unsupervision=0):
+def main(labelled, unsupervision=0, odd_even_labels=False):
+    global num_y_labels
+
     if unsupervision is None:
         unsupervision = 0
-    init_objects = initialise(labelled, unsupervision)
+
+    if odd_even_labels:
+        num_y_labels = 2
+        
+    init_objects = initialise(labelled, unsupervision, odd_even_labels)
     network, train_dataloader, test_dataset = init_objects['network'], init_objects['train_dataloader'], init_objects['test_dataset']
         
     timestamp = datetime.datetime.now()
@@ -451,6 +458,11 @@ def main(labelled, unsupervision=0):
     
     #Load the actual mnist data so that we can plot the actual images in the background
     images, labels = sc.load_data()
+    if odd_even_labels:
+        # Recast the labels in odd/even form
+        one_hot_labels = np.zeros((len(labels), 2), dtype=np.float32)
+        one_hot_labels[np.arange(len(labels)), (labels.argmax(axis=1) % 2)] = 1.
+        labels = one_hot_labels
     # images, labels = None, None
     test_func = lambda network, iteration: visualize_data(network, test_dataset[:100], images, labels, iteration, timestamp, device)
 
@@ -473,4 +485,4 @@ def test_labels():
             plt.show()
 
 if __name__ == '__main__':
-    network = main(True, 0)
+    network = main(True, 0, True)
