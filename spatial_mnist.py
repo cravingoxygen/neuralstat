@@ -420,9 +420,11 @@ def visualise_context(network, dataset, device):
         network.train()
 
 
-def initialise(labelled, unsupervision=0, odd_even_labels=False):
-    train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision, odd_even_labels=odd_even_labels)
-    test_dataset = spd.SpatialMNISTDataset(data_dir, split='test', odd_even_labels=odd_even_labels)
+def initialise(labelled, unsupervision=0, odd_even_labels=False, excluded_labels=None):
+    train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision,
+                                            odd_even_labels=odd_even_labels, excluded_labels=excluded_labels)
+    test_dataset = spd.SpatialMNISTDataset(data_dir, split='test',
+                                           odd_even_labels=odd_even_labels, excluded_labels=excluded_labels)
     train_dataloader = to.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
 
     if labelled:
@@ -437,7 +439,7 @@ def initialise(labelled, unsupervision=0, odd_even_labels=False):
             'test_dataset': test_dataset}
 
 
-def main(labelled, unsupervision=0, odd_even_labels=False):
+def main(labelled, unsupervision=0, odd_even_labels=False, excluded_labels=None):
     global num_y_labels
 
     if unsupervision is None:
@@ -446,7 +448,7 @@ def main(labelled, unsupervision=0, odd_even_labels=False):
     if odd_even_labels:
         num_y_labels = 2
         
-    init_objects = initialise(labelled, unsupervision, odd_even_labels)
+    init_objects = initialise(labelled, unsupervision, odd_even_labels, excluded_labels)
     network, train_dataloader, test_dataset = init_objects['network'], init_objects['train_dataloader'], init_objects['test_dataset']
         
     timestamp = datetime.datetime.now()
@@ -485,4 +487,4 @@ def test_labels():
             plt.show()
 
 if __name__ == '__main__':
-    network = main(True, 0, True)
+    network = main(True, 0, True, np.array([0]))

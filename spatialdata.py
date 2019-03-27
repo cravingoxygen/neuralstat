@@ -6,7 +6,7 @@ from torch.utils import data
 
 
 class SpatialMNISTDataset(data.Dataset):
-    def __init__(self, data_dir, split='train', unsupervision=0, odd_even_labels=False):
+    def __init__(self, data_dir, split='train', unsupervision=0, odd_even_labels=False, excluded_labels=None):
         splits = {
             'train': slice(0, 60000),
             'test': slice(60000, 70000)
@@ -28,6 +28,14 @@ class SpatialMNISTDataset(data.Dataset):
         # self._labels = self._labels[ix]
 
         assert len(self._spatial) == len(self._labels)
+
+        if excluded_labels is not None:
+            one_hot_excluded_labels = np.zeros((self._labels.shape[1], excluded_labels.shape[0]), dtype=np.bool)
+            one_hot_excluded_labels[excluded_labels, np.arange(excluded_labels.shape[0]),] = True
+            exclusion_mask = (self._labels[:, :, np.newaxis] * one_hot_excluded_labels[np.newaxis, :, :]).sum(axis=2).sum(axis=1).astype(np.bool)
+            self._spatial = self._spatial[~exclusion_mask]
+            self._labels = self._labels[~exclusion_mask]
+
         self._n = len(self._spatial)
 
         if odd_even_labels:
