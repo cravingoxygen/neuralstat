@@ -37,6 +37,7 @@ class SpatialMNISTDataset(data.Dataset):
             self._labels = self._labels[~exclusion_mask]
 
         self._n = len(self._spatial)
+        self._numerical_labels = self._labels
 
         if odd_even_labels:
             one_hot_labels = np.zeros((self._n, 2), dtype=np.float32)
@@ -53,7 +54,8 @@ class SpatialMNISTDataset(data.Dataset):
         # We need the original format of two-dimensional data, so removed
         return {"dataset": self._spatial[item],
                 "label": self._labels[item],
-                "full_label": self._full_labels[item]}
+                "full_label": self._full_labels[item],
+                "numerical_label": self._numerical_labels[item]}
 
     def __len__(self):
         return self._n

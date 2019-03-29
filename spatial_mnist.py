@@ -369,7 +369,7 @@ def generate_samples_like(network, datasets, labels, timestamp, device, iteratio
         return generated_samples
 
 
-def plot_digit_dataset(digits, labels, timestamp, iteration, make_plots=True):
+def plot_digit_dataset(digits, labels, timestamp, iteration, make_plots=True, title=None):
     """Take a collection of generated digit point clouds, and plot them."""
     with to.no_grad():
         fig, axs = plt.subplots(10, 10)
@@ -383,6 +383,10 @@ def plot_digit_dataset(digits, labels, timestamp, iteration, make_plots=True):
             axs[index].scatter(digit[:, 0].cpu(), digit[:, 1].cpu(), s=1, alpha=0.3)
             axs[index].text(0, 14, labels[index].argmax().item())
 
+        if title is None:
+            plt.suptitle("Generated Digits after {} Iterations\n(Odd/Even Labels, Fully Supervised, Zeros Removed)".format(iteration))
+        else:
+            plt.suptitle(title)
         if make_plots:
             plt.show()
         else:
@@ -401,7 +405,7 @@ def visualize_data(network, dataset, images, labels, iteration, timestamp, devic
         plot_digit_dataset(generated_digits, test_set_labels, timestamp, iteration, make_plots=False)
 
 
-def visualise_context(network, dataset, device):
+def visualise_context(network, dataset, device, title=None):
     """Plot a low-dimensional representation of the context space"""
     with to.no_grad():
         network.eval()
@@ -415,12 +419,20 @@ def visualise_context(network, dataset, device):
         labels = to.cat(labels, dim=0)
 
         data = tsne.tsne(contexts.cpu().numpy(), no_dims=2, initial_dims=contexts.shape[1], perplexity=30.0)
+        if title is None:
+            plt.title("2D t-SNE Plot of Test Data Contexts\nafter 1000 Iterations (Numeric Labels, Fully Supervised, Zeros Removed)")
+        else:
+            plt.title(title)
         plt.scatter(data[:, 0], data[:, 1], c=labels.argmax(dim=1).cpu().numpy())
         plt.show()
         network.train()
 
 
 def initialise(labelled, unsupervision=0, odd_even_labels=False, excluded_labels=None):
+    global num_y_labels
+    if odd_even_labels:
+        num_y_labels = 2
+        
     train_dataset = spd.SpatialMNISTDataset(data_dir, split='train', unsupervision=unsupervision,
                                             odd_even_labels=odd_even_labels, excluded_labels=excluded_labels)
     test_dataset = spd.SpatialMNISTDataset(data_dir, split='test',
@@ -440,14 +452,9 @@ def initialise(labelled, unsupervision=0, odd_even_labels=False, excluded_labels
 
 
 def main(labelled, unsupervision=0, odd_even_labels=False, excluded_labels=None):
-    global num_y_labels
-
     if unsupervision is None:
         unsupervision = 0
 
-    if odd_even_labels:
-        num_y_labels = 2
-        
     init_objects = initialise(labelled, unsupervision, odd_even_labels, excluded_labels)
     network, train_dataloader, test_dataset = init_objects['network'], init_objects['train_dataloader'], init_objects['test_dataset']
         
@@ -485,6 +492,88 @@ def test_labels():
             plt.scatter(batch['dataset'][digit][:,0], batch['dataset'][digit][:,1])
             plt.text(0, 0, batch['label'][digit].argmax().item())
             plt.show()
+
+
+def make_report_new_experiment_plots():
+    model_paths = ("./results/2019-03-22 10:32:17 Fully Supervised, 1000 Iterations, Simplified ContextDecoder/trained_mnist_model",
+                   "./results/2019-03-22 10:33:22 0.9 Unsupervised, 1000 Iterations, Simplified ContextDecoder/trained_mnist_model",
+                   "./results/2019-03-25 10:41:20 Fully Supervised, 1000 Iterations, Simplified ContextDecoder, OddEven Labels/trained_mnist_model",
+                   "./results/2019-03-27 10:30:37 Fully Supervised, 1000 Iterations, Simplified ContextDecoder, OddEven Labels, No Zeros/trained_mnist_model")
+    initialiser_labelled = (True,
+                            True,
+                            True,
+                            True)
+    initialiser_unsupervision = (0,
+                                 0.9,
+                                 0,
+                                 0)
+    initialiser_odd_even_labels = (False,
+                                   False,
+                                   True,
+                                   True)
+    initialiser_excluded_labels = (None,
+                                   None,
+                                   None,
+                                   to.tensor([0]))
+    num_y_labels = (10,
+                    10,
+                    2,
+                    2)
+    num_samples = 100
+
+    for path, labelled, unsupervision, odd_even_labels, excluded_labels, y_labels in\
+        zip(model_paths, initialiser_labelled, initialiser_unsupervision, initialiser_odd_even_labels, initialiser_excluded_labels, num_y_labels):
+        objs = initialise(labelled, unsupervision, odd_even_labels, excluded_labels)
+        network = objs['network']
+        test_dataset = objs['test_dataset']
+        network.deserialise(path)
+
+        plt.figure()
+        test_set_labels = to.zeros((num_samples, y_labels), device='cuda').scatter_(
+            1, to.arange(y_labels).to(device).unsqueeze(1).expand(y_labels, num_samples//y_labels).flatten().unsqueeze(1), 1)
+        generated_digits = network.generate(test_set_labels, samples_per_dataset=250)
+        plot_digit_dataset(generated_digits, test_set_labels, 'tmp', 1000, make_plots=True,
+                           title="Generated Digits after 1000 Iterations\n({}{}{})"\
+                           .format("Odd/Even Labels, " if odd_even_labels else "",
+                                   "Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
+                                   ", Zeros Removed" if excluded_labels is not None else ""))
+
+        plt.figure()
+        generated_contexts = network.reparameterise_normal(*network.context_decoder(test_set_labels))
+        generated_data = tsne.tsne(generated_contexts.detach().cpu().numpy(), no_dims=2, initial_dims=generated_contexts.shape[1], perplexity=30.0)
+        plt.title("2D t-SNE Plot of Generated Contexts\nafter 1000 Iterations ({}{}{})"\
+                  .format("Odd/Even Labels, " if odd_even_labels else "",
+                          "Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
+                          ", Zeros Removed" if excluded_labels is not None else ""))
+        plt.scatter(generated_data[:,0], generated_data[:,1], c=test_set_labels.argmax(1).cpu().numpy())
+        plt.show()
+        # if odd_even_labels:
+        #     plt.figure()
+        #     plt.title("2D t-SNE Plot of Generated Contexts\nafter 1000 Iterations (Numeric Labels, {}{})"\
+        #               .format("Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
+        #                       ", Zeros Removed" if excluded_labels is not None else ""))
+        #     plt.scatter(generated_data[:,0], generated_data[:,1],
+        #                 c=spd.SpatialMNISTDataset("./spatial_data/spatial/", 'test', excluded_labels=to.tensor([0]))[:100]['label'].argmax(1))
+        #     plt.show()
+
+        plt.figure()
+        test_contexts = network.reparameterise_normal(*network.statistic_network(to.from_numpy(test_dataset[:100]['dataset']).cuda(),
+                                                                                 to.from_numpy(test_dataset[:100]['label']).cuda()))
+        test_data = tsne.tsne(test_contexts.detach().cpu().numpy(), no_dims=2, initial_dims=test_contexts.shape[1], perplexity=30.0)
+        plt.scatter(test_data[:,0], test_data[:,1], c=test_dataset[:100]['label'].argmax(1))
+        plt.title("2D t-SNE Plot of Test Data Contexts\nafter 1000 Iterations ({}{}{})"\
+                  .format("Odd/Even Labels, " if odd_even_labels else "",
+                          "Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
+                          ", Zeros Removed" if excluded_labels is not None else ""))
+        plt.show()
+        if odd_even_labels:
+            plt.figure()
+            plt.title("2D t-SNE Plot of Test Data Contexts\nafter 1000 Iterations (Numeric Labels, {}{})"\
+                      .format("Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
+                              ", Zeros Removed" if excluded_labels is not None else ""))
+            plt.scatter(test_data[:,0], test_data[:,1], c=test_dataset[:100]['numerical_label'].argmax(1))
+            plt.show()
+
 
 if __name__ == '__main__':
     network = main(True, 0, True, np.array([0]))
