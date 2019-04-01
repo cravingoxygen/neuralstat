@@ -8,6 +8,7 @@ import tsne
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 import spatialdata as spd
 import spatialcreate as sc
@@ -521,6 +522,10 @@ def make_report_new_experiment_plots():
                     2)
     num_samples = 100
 
+    numeric_legend = [Line2D([0], [0], linestyle='none', color=plt.cm.tab10(i/10), label=i, marker='o') for i in range(10)]
+    parity_legend = [Line2D([0], [0], linestyle='none', color=plt.cm.tab10(0), label="Even", marker='o'),
+                     Line2D([0], [0], linestyle='none', color=plt.cm.tab10(0.1), label="Odd", marker='o')]
+
     for path, labelled, unsupervision, odd_even_labels, excluded_labels, y_labels in\
         zip(model_paths, initialiser_labelled, initialiser_unsupervision, initialiser_odd_even_labels, initialiser_excluded_labels, num_y_labels):
         objs = initialise(labelled, unsupervision, odd_even_labels, excluded_labels)
@@ -540,12 +545,19 @@ def make_report_new_experiment_plots():
 
         plt.figure()
         generated_contexts = network.reparameterise_normal(*network.context_decoder(test_set_labels))
+        import pdb; pdb.set_trace()
         generated_data = tsne.tsne(generated_contexts.detach().cpu().numpy(), no_dims=2, initial_dims=generated_contexts.shape[1], perplexity=30.0)
         plt.title("2D t-SNE Plot of Generated Contexts\nafter 1000 Iterations ({}{}{})"\
                   .format("Odd/Even Labels, " if odd_even_labels else "",
                           "Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
                           ", Zeros Removed" if excluded_labels is not None else ""))
-        plt.scatter(generated_data[:,0], generated_data[:,1], c=test_set_labels.argmax(1).cpu().numpy())
+        plt.scatter(generated_data[:,0], generated_data[:,1], c=test_set_labels.argmax(1).cpu().numpy(), cmap='tab10', vmin=0, vmax=9)
+        if odd_even_labels:
+            legend = plt.legend(handles=parity_legend)
+        else:
+            legend = plt.legend(handles=numeric_legend, ncol=2)
+            for label in legend.get_texts():
+                label.set_ha('center')
         plt.show()
         # if odd_even_labels:
         #     plt.figure()
@@ -560,7 +572,13 @@ def make_report_new_experiment_plots():
         test_contexts = network.reparameterise_normal(*network.statistic_network(to.from_numpy(test_dataset[:100]['dataset']).cuda(),
                                                                                  to.from_numpy(test_dataset[:100]['label']).cuda()))
         test_data = tsne.tsne(test_contexts.detach().cpu().numpy(), no_dims=2, initial_dims=test_contexts.shape[1], perplexity=30.0)
-        plt.scatter(test_data[:,0], test_data[:,1], c=test_dataset[:100]['label'].argmax(1))
+        plt.scatter(test_data[:,0], test_data[:,1], c=test_dataset[:100]['label'].argmax(1), cmap='tab10', vmin=0, vmax=9)
+        if odd_even_labels:
+            legend = plt.legend(handles=parity_legend)
+        else:
+            legend = plt.legend(handles=numeric_legend, ncol=2)
+            for label in legend.get_texts():
+                label.set_ha('center')
         plt.title("2D t-SNE Plot of Test Data Contexts\nafter 1000 Iterations ({}{}{})"\
                   .format("Odd/Even Labels, " if odd_even_labels else "",
                           "Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
@@ -571,7 +589,10 @@ def make_report_new_experiment_plots():
             plt.title("2D t-SNE Plot of Test Data Contexts\nafter 1000 Iterations (Numeric Labels, {}{})"\
                       .format("Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
                               ", Zeros Removed" if excluded_labels is not None else ""))
-            plt.scatter(test_data[:,0], test_data[:,1], c=test_dataset[:100]['numerical_label'].argmax(1))
+            plt.scatter(test_data[:,0], test_data[:,1], c=test_dataset[:100]['numerical_label'].argmax(1), cmap='tab10', vmin=0, vmax=9)
+            legend = plt.legend(handles=numeric_legend, ncol=2)
+            for label in legend.get_texts():
+                label.set_ha('center')
             plt.show()
 
 
