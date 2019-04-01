@@ -20,8 +20,8 @@ class SpatialMNISTDataset(data.Dataset):
         with open(labels_path, 'rb') as file:
             labels = pickle.load(file)
 
-        self._spatial = np.array(spatial[splits[split]]).astype(np.float32)[:10000]
-        self._labels = np.array(labels[splits[split]]).astype(np.float32)[:10000]
+        self._spatial = np.array(spatial[splits[split]]).astype(np.float32)
+        self._labels = np.array(labels[splits[split]]).astype(np.float32)
 
         # ix = self._labels[:, 1] != 1
         # self._spatial = self._spatial[ix]
