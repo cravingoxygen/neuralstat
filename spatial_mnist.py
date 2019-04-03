@@ -496,10 +496,14 @@ def test_labels():
 
 
 def make_report_new_experiment_plots():
-    model_paths = ("./results/2019-03-22 10:32:17 Fully Supervised, 1000 Iterations, Simplified ContextDecoder/trained_mnist_model",
-                   "./results/2019-03-22 10:33:22 0.9 Unsupervised, 1000 Iterations, Simplified ContextDecoder/trained_mnist_model",
-                   "./results/2019-03-25 10:41:20 Fully Supervised, 1000 Iterations, Simplified ContextDecoder, OddEven Labels/trained_mnist_model",
-                   "./results/2019-03-27 10:30:37 Fully Supervised, 1000 Iterations, Simplified ContextDecoder, OddEven Labels, No Zeros/trained_mnist_model")
+    # model_paths = ("./results/2019-03-22 10:32:17 Fully Supervised, 1000 Iterations, Simplified ContextDecoder/trained_mnist_model",
+    #                "./results/2019-03-22 10:33:22 0.9 Unsupervised, 1000 Iterations, Simplified ContextDecoder/trained_mnist_model",
+    #                "./results/2019-03-25 10:41:20 Fully Supervised, 1000 Iterations, Simplified ContextDecoder, OddEven Labels/trained_mnist_model",
+    #                "./results/2019-03-27 10:30:37 Fully Supervised, 1000 Iterations, Simplified ContextDecoder, OddEven Labels, No Zeros/trained_mnist_model")
+    model_paths = ("./results/2019-04-01 14:01:42 Fully Supervised, Clamped Gradients, Full Training Data/trained_mnist_model",
+                   "./results/2019-04-01 14:02:18 0.9 Unsupervised, Clamped Gradients, Full Training Data/trained_mnist_model",
+                   "./results/2019-04-01 14:02:56 Fully Supervised, Clamped Gradients, OddEven Labels/trained_mnist_model",
+                   "./results/2019-04-01 14:03:41 Fully Supervised, Clamped Gradients, OddEven Labels, No Zeros/trained_mnist_model")
     initialiser_labelled = (True,
                             True,
                             True,
@@ -533,7 +537,7 @@ def make_report_new_experiment_plots():
         test_dataset = objs['test_dataset']
         network.deserialise(path)
 
-        # plt.figure()
+        plt.figure()
         test_set_labels = to.zeros((num_samples, y_labels), device='cuda').scatter_(
             1, to.arange(y_labels).to(device).unsqueeze(1).expand(y_labels, num_samples//y_labels).flatten().unsqueeze(1), 1)
         generated_digits = network.generate(test_set_labels, samples_per_dataset=250)
@@ -543,7 +547,7 @@ def make_report_new_experiment_plots():
                                    "Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
                                    ", Zeros Removed" if excluded_labels is not None else ""))
 
-        # plt.figure()
+        plt.figure()
         generated_contexts = network.reparameterise_normal(*network.context_decoder(test_set_labels))
         import pdb; pdb.set_trace()
         generated_data = tsne.tsne(generated_contexts.detach().cpu().numpy(), no_dims=2, initial_dims=generated_contexts.shape[1], perplexity=30.0)
@@ -568,7 +572,7 @@ def make_report_new_experiment_plots():
         #                 c=spd.SpatialMNISTDataset("./spatial_data/spatial/", 'test', excluded_labels=to.tensor([0]))[:100]['label'].argmax(1))
         #     plt.show()
 
-        # plt.figure()
+        plt.figure()
         test_contexts = network.reparameterise_normal(*network.statistic_network(to.from_numpy(test_dataset[:100]['dataset']).cuda(),
                                                                                  to.from_numpy(test_dataset[:100]['label']).cuda()))
         test_data = tsne.tsne(test_contexts.detach().cpu().numpy(), no_dims=2, initial_dims=test_contexts.shape[1], perplexity=30.0)
@@ -585,7 +589,7 @@ def make_report_new_experiment_plots():
                           ", Zeros Removed" if excluded_labels is not None else ""))
         plt.show()
         if odd_even_labels:
-            # plt.figure()
+            plt.figure()
             plt.title("2D t-SNE Plot of Test Data Contexts\nafter 1000 Iterations (Numeric Labels, {}{})"\
                       .format("Fully Supervised" if unsupervision == 0 else "90% Unsupervised",
                               ", Zeros Removed" if excluded_labels is not None else ""))
